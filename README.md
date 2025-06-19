@@ -1,36 +1,197 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# Orders Management Tool - Next.js with Supabase and Tailwind CSS
 
-## Getting Started
+A modern, single-page web application for managing orders data. Built with Next.js 15, TypeScript, Tailwind CSS, and Supabase. This tool allows you to fetch CSV data from an API and upload it to a Supabase database with a beautiful, responsive interface.
 
-First, run the development server:
+## 🚀 Features
 
-```bash
-npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
+- **One-Page Interface** - Clean, focused tool for orders management
+- **CSV Data Fetching** - Fetch orders data from Plenty One API
+- **Visual Data Display** - View CSV data in a responsive table (50 rows max by default)
+- **Supabase Integration** - Upload data to PostgreSQL database
+- **Batch Processing** - Handle large datasets efficiently
+- **Real-time Feedback** - Status messages and error handling
+- **Responsive Design** - Works on all devices
+
+## 📦 Tech Stack
+
+### Frontend
+- Next.js 15 (App Router)
+- React 18
+- TypeScript
+- Tailwind CSS
+- ESLint
+
+### Backend
+- Supabase (PostgreSQL database)
+- Plenty One API integration
+
+## 🛠️ Getting Started
+
+### Prerequisites
+
+- Node.js 18+ 
+- npm or yarn
+- Supabase account
+- Plenty One API access
+
+### Installation
+
+1. **Clone the repository**
+   ```bash
+   git clone <your-repo-url>
+   cd buka-test
+   ```
+
+2. **Install dependencies**
+   ```bash
+   npm install
+   ```
+
+3. **Set up environment variables**
+   ```bash
+   cp env.example .env.local
+   ```
+   
+   Edit `.env.local` and add your credentials:
+   ```env
+   NEXT_PUBLIC_SUPABASE_URL=your_supabase_project_url
+   NEXT_PUBLIC_SUPABASE_ANON_KEY=your_supabase_anon_key
+   NEXT_PUBLIC_PLENTY_ONE_KEY=your_plenty_one_api_key
+   ```
+
+4. **Set up Supabase database**
+   - Go to your Supabase project dashboard
+   - Navigate to the SQL Editor
+   - Copy and run the contents of `src/lib/supabase-schema.sql`
+
+5. **Start the development server**
+   ```bash
+   npm run dev
+   ```
+
+6. **Open your browser**
+   Navigate to [http://localhost:3000](http://localhost:3000)
+
+## 🗂️ Project Structure
+
+```
+buka-test/
+├── src/
+│   ├── app/                 # Next.js App Router pages
+│   │   ├── page.tsx         # Main orders tool page
+│   │   └── layout.tsx       # Root layout
+│   ├── components/          # Reusable components
+│   │   └── OrdersTool.tsx   # Main orders management component
+│   └── lib/                 # Utility libraries
+│       ├── supabase.ts      # Supabase client configuration
+│       ├── api.ts           # API functions for CSV fetching
+│       └── supabase-schema.sql # Database schema
+├── public/                  # Static assets
+├── env.example             # Environment variables template
+└── package.json            # Dependencies and scripts
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+## 🔧 Configuration
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+### Supabase Setup
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+1. Create a new project at [supabase.com](https://supabase.com)
+2. Go to Settings > API to find your project URL and anon key
+3. Add these to your `.env.local` file
+4. Run the SQL schema in the Supabase SQL Editor
 
-## Learn More
+### Plenty One API
 
-To learn more about Next.js, take a look at the following resources:
+1. Get your API key from Plenty One
+2. Add it to your `.env.local` file as `NEXT_PUBLIC_PLENTY_ONE_KEY`
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+### Database Schema
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+The application expects the following table structure in Supabase:
 
-## Deploy on Vercel
+```sql
+CREATE TABLE orders (
+    id BIGSERIAL PRIMARY KEY,
+    order_id VARCHAR(255) NOT NULL,
+    item_quantity INTEGER NOT NULL DEFAULT 0,
+    variation_number VARCHAR(255),
+    order_date VARCHAR(255),
+    variation_name TEXT,
+    attribute TEXT,
+    marketplace VARCHAR(255),
+    delivery_country VARCHAR(255),
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+    updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+);
+```
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
+## 📱 Available Scripts
 
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+- `npm run dev` - Start development server
+- `npm run build` - Build for production
+- `npm run start` - Start production server
+- `npm run lint` - Run ESLint
+
+## 🎯 How to Use
+
+1. **Fetch Orders**: Click the "Fetch Orders CSV" button to download and parse the latest orders data from the API
+2. **Review Data**: The data will be displayed in a table showing up to 50 rows by default
+3. **View All**: Click "Show All" to view all fetched orders
+4. **Upload to Database**: Click "Upload to Supabase" to store the data in your PostgreSQL database
+
+## 🔌 API Integration
+
+The tool integrates with the Plenty One API to fetch CSV data with the following columns:
+
+- OrderID
+- Item Quantity
+- Variation Number
+- Order Date
+- Variation Name
+- Attribute
+- Marketplace
+- Delivery Country
+
+## 🚀 Deployment
+
+### Vercel (Recommended)
+1. Push your code to GitHub
+2. Connect your repository to Vercel
+3. Add environment variables in Vercel dashboard
+4. Deploy automatically on push
+
+### Other Platforms
+- **Netlify**: Use `npm run build` and deploy the `.next` folder
+- **Railway**: Connect your GitHub repository
+- **DigitalOcean App Platform**: Use the Node.js preset
+
+## 🆘 Troubleshooting
+
+### Common Issues
+
+1. **"API token not found"**: Make sure `NEXT_PUBLIC_PLENTY_ONE_KEY` is set in your `.env.local`
+2. **"Orders table does not exist"**: Run the SQL schema in your Supabase SQL Editor
+3. **CSV parsing errors**: Check that the API is returning valid CSV data
+4. **Upload failures**: Verify your Supabase credentials and table permissions
+
+### Support
+
+If you encounter any issues:
+
+1. Check the browser console for error messages
+2. Verify your environment variables are set correctly
+3. Ensure the Supabase table schema is created
+4. Check the Supabase dashboard for any database errors
+
+## 🔄 Updates
+
+To keep your project up to date:
+
+```bash
+npm update
+npm run build
+```
+
+---
+
+Built with ❤️ using Next.js, Supabase, and Tailwind CSS

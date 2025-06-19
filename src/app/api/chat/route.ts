@@ -33,32 +33,40 @@ export async function POST(request: Request) {
       )
     }
 
-    // Prepare data summary for the AI
-    const dataSummary = generateDataSummary(ordersData)
+    // Generate comprehensive data analytics
+    const analytics = generateComprehensiveAnalytics(ordersData)
 
-    const systemPrompt = `You are a helpful data analyst assistant. You have access to orders data from an e-commerce system. 
+    const systemPrompt = `You are a data analyst for an e-commerce business. You have complete access to ${ordersData.length} orders with ALL data available.
 
-Here's a summary of the available data:
-${dataSummary}
+IMPORTANT FORMATTING RULES:
+- Do NOT use ** or any markdown formatting
+- Use plain text only
+- Use simple line breaks and dashes for lists
+- Be direct and conversational
 
-The complete dataset contains ${ordersData.length} orders with the following fields:
-- order_id: unique identifier for each order
-- item_quantity: number of items in the order
-- variation_number: product variation identifier
-- order_date: when the order was placed
-- variation_name: name of the product variation
-- attribute: product attributes
-- marketplace: where the order was placed (e.g., Amazon, eBay, etc.)
-- delivery_country: destination country for the order
+DATA AVAILABLE:
+${analytics}
 
-When answering questions:
-1. Be specific and provide actual numbers from the data
-2. If asked for trends or patterns, analyze the data provided
-3. Format your response in a clear, conversational way
-4. If you need to show lists or data, format them nicely
-5. Always base your answers on the actual data provided
+COMPLETE DATASET FIELDS:
+- order_id: unique order identifier  
+- item_quantity: number of items per order
+- variation_number: product variation code
+- order_date: when order was placed
+- variation_name: full product name
+- attribute: product attribute/color/variation
+- marketplace: sales channel (Amazon FBA, eBay, etc.)
+- delivery_country: shipping destination
 
-Answer the user's question about this orders data.`
+ANALYSIS INSTRUCTIONS:
+1. Always analyze the complete dataset provided
+2. Give specific numbers and percentages
+3. When asked about "most sold" or rankings, calculate actual totals
+4. For attributes, count total quantities sold per attribute
+5. Show top results with actual numbers
+6. Be precise and factual
+7. Format lists with simple dashes, no special characters
+
+Answer the user's question using the complete data analysis.`
 
     // Make request to DeepSeek API
     const response = await fetch('https://api.deepseek.com/v1/chat/completions', {
@@ -79,8 +87,8 @@ Answer the user's question about this orders data.`
             content: message
           }
         ],
-        temperature: 0.3,
-        max_tokens: 1000,
+        temperature: 0.1,
+        max_tokens: 2000,
       }),
     })
 
@@ -117,49 +125,106 @@ Answer the user's question about this orders data.`
   }
 }
 
-function generateDataSummary(orders: OrderData[]): string {
+function generateComprehensiveAnalytics(orders: OrderData[]): string {
   if (!orders || orders.length === 0) {
     return "No orders data available."
   }
 
-  // Calculate basic statistics
+  // Basic stats
   const totalOrders = orders.length
   const totalQuantity = orders.reduce((sum, order) => sum + (order.item_quantity || 0), 0)
-  const avgQuantity = totalQuantity / totalOrders
 
-  // Get unique marketplaces
-  const marketplaces = [...new Set(orders.map(order => order.marketplace))].filter(Boolean)
-  const marketplaceCounts = marketplaces.map(marketplace => ({
-    marketplace,
-    count: orders.filter(order => order.marketplace === marketplace).length
-  })).sort((a, b) => b.count - a.count)
+  // Attribute analysis (most important for user's question)
+  const attributeAnalysis = new Map<string, number>()
+  orders.forEach(order => {
+    if (order.attribute) {
+      const attr = order.attribute.trim()
+      attributeAnalysis.set(attr, (attributeAnalysis.get(attr) || 0) + (order.item_quantity || 0))
+    }
+  })
+  
+  const topAttributes = Array.from(attributeAnalysis.entries())
+    .sort((a, b) => b[1] - a[1])
+    .slice(0, 20)
 
-  // Get unique countries
-  const countries = [...new Set(orders.map(order => order.delivery_country))].filter(Boolean)
-  const countryCounts = countries.map(country => ({
-    country,
-    count: orders.filter(order => order.delivery_country === country).length
-  })).sort((a, b) => b.count - a.count)
+  // Marketplace analysis
+  const marketplaceAnalysis = new Map<string, {count: number, quantity: number}>()
+  orders.forEach(order => {
+    if (order.marketplace) {
+      const mp = order.marketplace.trim()
+      const current = marketplaceAnalysis.get(mp) || {count: 0, quantity: 0}
+      marketplaceAnalysis.set(mp, {
+        count: current.count + 1,
+        quantity: current.quantity + (order.item_quantity || 0)
+      })
+    }
+  })
 
-  // Get date range
+  const topMarketplaces = Array.from(marketplaceAnalysis.entries())
+    .sort((a, b) => b[1].quantity - a[1].quantity)
+    .slice(0, 10)
+
+  // Country analysis  
+  const countryAnalysis = new Map<string, {count: number, quantity: number}>()
+  orders.forEach(order => {
+    if (order.delivery_country) {
+      const country = order.delivery_country.trim()
+      const current = countryAnalysis.get(country) || {count: 0, quantity: 0}
+      countryAnalysis.set(country, {
+        count: current.count + 1,
+        quantity: current.quantity + (order.item_quantity || 0)
+      })
+    }
+  })
+
+  const topCountries = Array.from(countryAnalysis.entries())
+    .sort((a, b) => b[1].quantity - a[1].quantity)
+    .slice(0, 10)
+
+  // Product analysis
+  const productAnalysis = new Map<string, number>()
+  orders.forEach(order => {
+    if (order.variation_name) {
+      const product = order.variation_name.trim()
+      productAnalysis.set(product, (productAnalysis.get(product) || 0) + (order.item_quantity || 0))
+    }
+  })
+
+  const topProducts = Array.from(productAnalysis.entries())
+    .sort((a, b) => b[1] - a[1])
+    .slice(0, 15)
+
+  // Date analysis
   const dates = orders.map(order => new Date(order.order_date)).filter(date => !isNaN(date.getTime()))
   const oldestDate = dates.length > 0 ? new Date(Math.min(...dates.map(d => d.getTime()))) : null
   const newestDate = dates.length > 0 ? new Date(Math.max(...dates.map(d => d.getTime()))) : null
 
-  let summary = `Data Summary:
-- Total Orders: ${totalOrders}
-- Total Items: ${totalQuantity}
-- Average Quantity per Order: ${avgQuantity.toFixed(2)}
+  return `COMPLETE ANALYTICS FOR ${totalOrders} ORDERS:
 
-Top Marketplaces:
-${marketplaceCounts.slice(0, 5).map(m => `- ${m.marketplace}: ${m.count} orders`).join('\n')}
+SUMMARY:
+Total Orders: ${totalOrders}
+Total Items Sold: ${totalQuantity}
+Average Items per Order: ${(totalQuantity / totalOrders).toFixed(2)}
+Date Range: ${oldestDate?.toDateString()} to ${newestDate?.toDateString()}
 
-Top Delivery Countries:
-${countryCounts.slice(0, 5).map(c => `- ${c.country}: ${c.count} orders`).join('\n')}`
+TOP ATTRIBUTES BY QUANTITY SOLD:
+${topAttributes.map((attr, idx) => `${idx + 1}. ${attr[0]}: ${attr[1]} units`).join('\n')}
 
-  if (oldestDate && newestDate) {
-    summary += `\n\nDate Range: ${oldestDate.toDateString()} to ${newestDate.toDateString()}`
-  }
+TOP MARKETPLACES BY VOLUME:
+${topMarketplaces.map((mp, idx) => `${idx + 1}. ${mp[0]}: ${mp[1].quantity} units (${mp[1].count} orders)`).join('\n')}
 
-  return summary
+TOP COUNTRIES BY VOLUME:
+${topCountries.map((country, idx) => `${idx + 1}. ${country[0]}: ${country[1].quantity} units (${country[1].count} orders)`).join('\n')}
+
+TOP PRODUCTS BY QUANTITY:
+${topProducts.map((product, idx) => `${idx + 1}. ${product[0]}: ${product[1]} units`).join('\n')}
+
+ALL UNIQUE ATTRIBUTES (${attributeAnalysis.size} total):
+${Array.from(attributeAnalysis.keys()).sort().join(', ')}
+
+ALL UNIQUE MARKETPLACES (${marketplaceAnalysis.size} total):
+${Array.from(marketplaceAnalysis.keys()).sort().join(', ')}
+
+ALL UNIQUE COUNTRIES (${countryAnalysis.size} total):
+${Array.from(countryAnalysis.keys()).sort().join(', ')}`
 } 

@@ -110,8 +110,8 @@ export default function OrdersTool() {
 
   return (
     <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-      <div className="bg-white rounded-lg shadow-lg p-6">
-        <h1 className="text-3xl font-bold text-gray-900 mb-6">Orders Management Tool</h1>
+      <div className="bg-white rounded-lg shadow-lg p-6" style={{ backgroundColor: 'var(--card)' }}>
+        <h1 className="text-3xl font-bold text-gray-900 dark:text-gray-100 mb-6">Orders Management Tool</h1>
         
         {/* Action Buttons */}
         <div className="flex flex-wrap gap-4 mb-6">
@@ -134,8 +134,8 @@ export default function OrdersTool() {
 
         {/* Data Range Selector */}
         {orders.length > 0 && (
-          <div className="mb-6 p-4 bg-gray-50 rounded-lg">
-            <h3 className="text-lg font-medium text-gray-900 mb-3">Data Upload Range</h3>
+          <div className="mb-6 p-4 bg-gray-50 rounded-lg" style={{ backgroundColor: 'var(--muted)' }}>
+            <h3 className="text-lg font-medium text-gray-900 dark:text-gray-100 mb-3">Data Upload Range</h3>
             <div className="space-y-3">
               <div className="flex items-center space-x-4">
                 <label className="flex items-center">
@@ -146,7 +146,7 @@ export default function OrdersTool() {
                     onChange={(e) => setDataRange(e.target.value as 'all' | 'custom')}
                     className="mr-2"
                   />
-                  <span className="text-sm font-medium text-gray-700">Upload All Data ({orders.length} rows)</span>
+                  <span className="text-sm font-medium text-gray-700 dark:text-gray-300">Upload All Data ({orders.length} rows)</span>
                 </label>
                 <label className="flex items-center">
                   <input
@@ -156,35 +156,35 @@ export default function OrdersTool() {
                     onChange={(e) => setDataRange(e.target.value as 'all' | 'custom')}
                     className="mr-2"
                   />
-                  <span className="text-sm font-medium text-gray-700">Custom Range</span>
+                  <span className="text-sm font-medium text-gray-700 dark:text-gray-300">Custom Range</span>
                 </label>
               </div>
               
               {dataRange === 'custom' && (
                 <div className="flex items-center space-x-4">
                   <div className="flex items-center space-x-2">
-                    <label className="text-sm font-medium text-gray-700">From Row:</label>
+                    <label className="text-sm font-medium text-gray-700 dark:text-gray-300">From Row:</label>
                     <input
                       type="number"
                       min="1"
                       max={orders.length}
                       value={startRow}
                       onChange={(e) => setStartRow(parseInt(e.target.value) || 1)}
-                      className="w-20 px-2 py-1 border border-gray-300 rounded-md text-sm"
+                      className="w-20 px-2 py-1 border border-gray-300 dark:border-gray-600 rounded-md text-sm bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100"
                     />
                   </div>
                   <div className="flex items-center space-x-2">
-                    <label className="text-sm font-medium text-gray-700">To Row:</label>
+                    <label className="text-sm font-medium text-gray-700 dark:text-gray-300">To Row:</label>
                     <input
                       type="number"
                       min={startRow}
                       max={orders.length}
                       value={endRow}
                       onChange={(e) => setEndRow(parseInt(e.target.value) || startRow)}
-                      className="w-20 px-2 py-1 border border-gray-300 rounded-md text-sm"
+                      className="w-20 px-2 py-1 border border-gray-300 dark:border-gray-600 rounded-md text-sm bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100"
                     />
                   </div>
-                  <span className="text-sm text-gray-500">
+                  <span className="text-sm text-gray-500 dark:text-gray-400">
                     ({dataRange === 'custom' ? Math.max(0, endRow - startRow + 1) : orders.length} rows will be uploaded)
                   </span>
                 </div>
@@ -210,7 +210,7 @@ export default function OrdersTool() {
         {orders.length > 0 && (
           <div className="mt-6">
             <div className="flex justify-between items-center mb-4">
-              <h2 className="text-xl font-semibold text-gray-900">
+              <h2 className="text-xl font-semibold text-gray-900 dark:text-gray-100">
                 Orders Data ({orders.length} total)
               </h2>
               {orders.length > 50 && (
@@ -224,66 +224,66 @@ export default function OrdersTool() {
             </div>
             
             <div className="overflow-x-auto">
-              <table className="min-w-full divide-y divide-gray-200">
-                <thead className="bg-gray-50">
+              <table className="min-w-full divide-y divide-gray-200 dark:divide-gray-600">
+                <thead className="bg-gray-50 dark:bg-gray-800">
                   <tr>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
                       Row #
                     </th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
                       Order ID
                     </th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
                       Quantity
                     </th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
                       Variation #
                     </th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
                       Order Date
                     </th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
                       Variation Name
                     </th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
                       Attribute
                     </th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
                       Marketplace
                     </th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
                       Delivery Country
                     </th>
                   </tr>
                 </thead>
-                <tbody className="bg-white divide-y divide-gray-200">
+                <tbody className="bg-white dark:bg-gray-900 divide-y divide-gray-200 dark:divide-gray-600">
                   {displayedOrders.map((order, index) => (
-                    <tr key={index} className="hover:bg-gray-50">
-                      <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
+                    <tr key={index} className="hover:bg-gray-50 dark:hover:bg-gray-700">
+                      <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900 dark:text-gray-100">
                         {index + 1}
                       </td>
-                      <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
+                      <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900 dark:text-gray-100">
                         {order.OrderID}
                       </td>
-                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500 dark:text-gray-400">
                         {order['Item Quantity']}
                       </td>
-                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500 dark:text-gray-400">
                         {order['Variation Number']}
                       </td>
-                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500 dark:text-gray-400">
                         {order['Order Date']}
                       </td>
-                      <td className="px-6 py-4 text-sm text-gray-500 max-w-xs truncate">
+                      <td className="px-6 py-4 text-sm text-gray-500 dark:text-gray-400 max-w-xs truncate">
                         {order['Variation Name']}
                       </td>
-                      <td className="px-6 py-4 text-sm text-gray-500 max-w-xs truncate">
+                      <td className="px-6 py-4 text-sm text-gray-500 dark:text-gray-400 max-w-xs truncate">
                         {order.Attribute}
                       </td>
-                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500 dark:text-gray-400">
                         {order.Marketplace}
                       </td>
-                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500 dark:text-gray-400">
                         {order['Delivery Country']}
                       </td>
                     </tr>
@@ -293,7 +293,7 @@ export default function OrdersTool() {
             </div>
             
             {orders.length > 50 && (
-              <div className="mt-4 text-center text-sm text-gray-500">
+              <div className="mt-4 text-center text-sm text-gray-500 dark:text-gray-400">
                 Showing {displayedOrders.length} of {orders.length} orders
               </div>
             )}
@@ -302,18 +302,18 @@ export default function OrdersTool() {
 
         {/* Instructions */}
         {orders.length === 0 && (
-          <div className="mt-8 p-6 bg-gray-50 rounded-lg">
-            <h3 className="text-lg font-medium text-gray-900 mb-2">Getting Started</h3>
-            <ol className="text-sm text-gray-600 space-y-1 list-decimal list-inside">
+          <div className="mt-8 p-6 bg-gray-50 rounded-lg" style={{ backgroundColor: 'var(--muted)' }}>
+            <h3 className="text-lg font-medium text-gray-900 dark:text-gray-100 mb-2">Getting Started</h3>
+            <ol className="text-sm text-gray-600 dark:text-gray-300 space-y-1 list-decimal list-inside">
               <li>Click &quot;Fetch Orders CSV&quot; to download and parse the latest orders data</li>
               <li>Review the data in the table below (shows first 50 rows by default)</li>
               <li>Choose your upload range (all data or custom range)</li>
               <li>Click &quot;Upload to Supabase&quot; to store the data in your database</li>
             </ol>
-            <div className="mt-4 p-4 bg-yellow-50 border border-yellow-200 rounded-md">
-              <p className="text-yellow-800 text-sm">
+            <div className="mt-4 p-4 bg-yellow-50 dark:bg-yellow-900/20 border border-yellow-200 dark:border-yellow-800 rounded-md">
+              <p className="text-yellow-800 dark:text-yellow-200 text-sm">
                 <strong>Note:</strong> Before uploading to Supabase, make sure to run the SQL schema in your Supabase SQL editor. 
-                The schema file is located at <code className="bg-yellow-100 px-1 rounded">src/lib/supabase-schema.sql</code>
+                The schema file is located at <code className="bg-yellow-100 dark:bg-yellow-800 px-1 rounded">src/lib/supabase-schema.sql</code>
               </p>
             </div>
           </div>

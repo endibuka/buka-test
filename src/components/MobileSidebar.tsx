@@ -66,7 +66,7 @@ export default function MobileSidebar({ sidebarOpen, setSidebarOpen }: MobileSid
                 </div>
               </Transition.Child>
 
-              <div className="flex grow flex-col gap-y-5 overflow-y-auto bg-white dark:bg-gray-800 px-6 pb-2 border-r border-gray-200 dark:border-gray-700">
+                              <div className="flex grow flex-col gap-y-5 overflow-y-auto bg-white px-6 pb-2 border-r border-gray-200 dark:border-gray-700" style={{ backgroundColor: 'var(--sidebar-bg)' }}>
                 <div className="flex h-16 shrink-0 items-center">
                   <h1 className="text-xl font-bold text-gray-900 dark:text-white">Admin Tools</h1>
                 </div>

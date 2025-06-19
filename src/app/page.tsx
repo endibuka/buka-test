@@ -1,3 +1,5 @@
+'use client'
+
 import OrdersTool from '@/components/OrdersTool'
 import DashboardLayout from '@/components/DashboardLayout'
 

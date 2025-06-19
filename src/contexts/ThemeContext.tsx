@@ -16,13 +16,13 @@ export function ThemeProvider({ children }: { children: ReactNode }) {
   const [mounted, setMounted] = useState(false)
 
   useEffect(() => {
+    setMounted(true)
     // Load theme from localStorage or system preference
     const savedTheme = localStorage.getItem('theme') as Theme
     const systemPreference = window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light'
     const initialTheme = savedTheme || systemPreference
     
     setTheme(initialTheme)
-    setMounted(true)
   }, [])
 
   useEffect(() => {
@@ -44,9 +44,13 @@ export function ThemeProvider({ children }: { children: ReactNode }) {
     setTheme(prev => prev === 'light' ? 'dark' : 'light')
   }
 
+  // Prevent hydration mismatch by providing a consistent initial state
   if (!mounted) {
-    // Prevent hydration mismatch
-    return <div className="opacity-0">{children}</div>
+    return (
+      <ThemeContext.Provider value={{ theme: 'light', toggleTheme }}>
+        {children}
+      </ThemeContext.Provider>
+    )
   }
 
   return (

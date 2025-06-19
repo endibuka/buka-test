@@ -24,7 +24,7 @@ export default function Sidebar({ collapsed = false, onToggleCollapse }: Sidebar
 
   return (
     <div className={`hidden md:fixed md:inset-y-0 md:flex md:flex-col transition-all duration-300 ${collapsed ? 'md:w-16' : 'md:w-64'}`}>
-      <div className="flex min-h-0 flex-1 flex-col bg-white dark:bg-gray-800 border-r border-gray-200 dark:border-gray-700 relative">
+      <div className="flex min-h-0 flex-1 flex-col bg-white border-r border-gray-200 dark:border-gray-700 relative" style={{ backgroundColor: 'var(--sidebar-bg)' }}>
         <div className="flex flex-1 flex-col overflow-y-auto pt-5 pb-4">
           <div className={`flex flex-shrink-0 items-center px-4 ${collapsed ? 'justify-center' : ''}`}>
             {collapsed ? (
@@ -76,7 +76,8 @@ export default function Sidebar({ collapsed = false, onToggleCollapse }: Sidebar
         {onToggleCollapse && (
           <button
             onClick={onToggleCollapse}
-            className="absolute top-1/2 -right-3 transform -translate-y-1/2 w-6 h-6 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-600 rounded-full flex items-center justify-center shadow-sm hover:shadow-md transition-shadow duration-200 z-10"
+            className="absolute top-1/2 -right-3 transform -translate-y-1/2 w-6 h-6 bg-white border border-gray-200 dark:border-gray-600 rounded-full flex items-center justify-center shadow-sm hover:shadow-md transition-shadow duration-200 z-10"
+            style={{ backgroundColor: 'var(--sidebar-bg)' }}
           >
             {collapsed ? (
               <ChevronRightIcon className="h-3 w-3 text-gray-600 dark:text-gray-400" />

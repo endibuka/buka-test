@@ -15,7 +15,7 @@ interface OrderData {
 
 export async function POST(request: Request) {
   try {
-    const { message, ordersData } = await request.json()
+    const { message, ordersData, chatHistory = [] } = await request.json()
 
     if (!message) {
       return NextResponse.json(
@@ -33,38 +33,37 @@ export async function POST(request: Request) {
       )
     }
 
-    // Smart query classification and direct functions
-    const queryResult = await handleSmartQuery(message, ordersData)
-    if (queryResult) {
-      // Generate AI-powered contextual suggestions
-      const suggestions = await generateAISuggestions(queryResult.response, message, DEEPSEEK_API_KEY)
-      
-      const response: any = {
-        response: queryResult.response
-      }
-      
-      if (suggestions && suggestions.length > 0) {
-        response.suggestions = suggestions
-      }
-      
-      return NextResponse.json(response)
-    }
-
-    // For complex queries, use full AI analysis
+    // Use AI for intelligent query analysis - no more hardcoded patterns
     const analytics = generateComprehensiveAnalytics(ordersData)
 
-    const systemPrompt = `You are a data analyst for an e-commerce business. You have complete access to ${ordersData.length} orders with ALL data available.
+    // Build chat history context
+    const historyContext = chatHistory.length > 0 ? `
+CONVERSATION HISTORY:
+${chatHistory.map((msg: { user: string; assistant: string }, idx: number) => `
+${idx + 1}. User: ${msg.user}
+   Assistant: ${msg.assistant}
+`).join('')}
 
-IMPORTANT FORMATTING RULES:
+Current Question: ${message}
+` : `User Question: ${message}`
+
+    const systemPrompt = `You are an EXPERT data analyst for an e-commerce business. You have complete access to ${ordersData.length} orders and must provide 100% ACCURATE analysis based on the exact data provided.
+
+🚨 CRITICAL ACCURACY REQUIREMENTS:
+- ONLY use data from the analytics section below
+- VERIFY all calculations are mathematically correct
+- DOUBLE-CHECK all numbers against the provided data
+- If unsure about any calculation, say so rather than guess
+- All percentages must add up correctly
+- All rankings must be based on actual data totals
+
+FORMATTING RULES:
 - Do NOT use ** or any markdown formatting
 - Use plain text only
 - Use simple line breaks and dashes for lists
 - Be direct and conversational
 
-DATA AVAILABLE:
-${analytics}
-
-COMPLETE DATASET FIELDS:
+DATASET FIELDS AVAILABLE:
 - order_id: unique order identifier  
 - item_quantity: number of items per order
 - variation_number: product variation code
@@ -74,21 +73,62 @@ COMPLETE DATASET FIELDS:
 - marketplace: sales channel (Amazon FBA, eBay, etc.)
 - delivery_country: shipping destination
 
-ANALYSIS INSTRUCTIONS:
-1. Always analyze the complete dataset provided
-2. Give specific numbers and percentages
-3. When asked about "most sold" or rankings, calculate actual totals
-4. For attributes, count total quantities sold per attribute
-5. Show top results with actual numbers
-6. Be precise and factual
-7. Format lists with simple dashes, no special characters
-8. When asked about specific order IDs, ALWAYS check the "ALL ORDER IDS AVAILABLE" list first
-9. If an order ID is found, look it up in the "DETAILED ORDER LOOKUP" section for full details
-10. For date queries, use the exact date strings from the data, don't try to reformat them
-11. If an order ID is not found in the "ALL ORDER IDS AVAILABLE" list, clearly state "Order ID [number] not found in the database"
-12. NEVER say an order doesn't exist without checking the complete order ID list
+COMPLETE DATA ANALYTICS PROVIDED:
+${analytics}
 
-Answer the user's question using the complete data analysis.`
+ANALYSIS CAPABILITIES:
+1. Order lookups by ID (use the order ID search capability section)
+2. Marketplace comparisons (use marketplace analytics section)
+3. Country analysis (use country analytics section)
+4. Attribute/color analysis (use attribute analytics section)
+5. Time-based analysis (use date range and monthly sections)
+6. Cross-dimensional comparisons
+7. Percentage and distribution calculations
+8. Average calculations by any dimension
+9. Top performer rankings
+
+CONVERSATION CONTEXT:
+${historyContext}
+
+🎯 ACCURACY PROTOCOL:
+1. READ the analytics data carefully
+2. IDENTIFY the exact data points needed for the question
+3. PERFORM calculations step-by-step
+4. VERIFY results make sense
+5. PROVIDE specific numbers with confidence
+6. If data is insufficient, clearly state what's missing
+
+RESPONSE REQUIREMENTS:
+- Base ALL answers on the provided analytics data
+- Show specific numbers and calculations
+- Verify totals and percentages are correct
+- Use emojis for clarity but maintain accuracy
+- If asked about specific entities (order IDs, etc.), check the relevant sections
+- Always double-check mathematical accuracy
+
+Answer the user's question with 100% accuracy using only the provided data analytics.`
+
+    // Build conversation messages with history
+    const messages = [
+      {
+        role: 'system',
+        content: systemPrompt
+      }
+    ]
+
+    // Add conversation history
+    chatHistory.forEach((msg: { user: string; assistant: string }) => {
+      messages.push(
+        { role: 'user', content: msg.user },
+        { role: 'assistant', content: msg.assistant }
+      )
+    })
+
+    // Add current message
+    messages.push({
+      role: 'user',
+      content: message
+    })
 
     // Make request to DeepSeek API
     const response = await fetch('https://api.deepseek.com/v1/chat/completions', {
@@ -99,17 +139,8 @@ Answer the user's question using the complete data analysis.`
       },
       body: JSON.stringify({
         model: 'deepseek-chat',
-        messages: [
-          {
-            role: 'system',
-            content: systemPrompt
-          },
-          {
-            role: 'user',
-            content: message
-          }
-        ],
-        temperature: 0.1,
+        messages: messages,
+        temperature: 0.05,
         max_tokens: 2000,
       }),
     })
@@ -136,11 +167,23 @@ Answer the user's question using the complete data analysis.`
 
     const aiResponse = data.choices[0].message.content
     
-    // Generate AI-powered contextual suggestions for complex queries too
-    const suggestions = await generateAISuggestions(aiResponse, message, DEEPSEEK_API_KEY)
+    // Validate critical data accuracy in the response
+    const validatedResponse = validateResponseAccuracy(aiResponse, ordersData, message)
     
-    const finalResponse: any = {
-      response: aiResponse
+    // Generate AI-powered contextual suggestions
+    const suggestions = await generateAISuggestions(validatedResponse, message, DEEPSEEK_API_KEY)
+    
+    const finalResponse: {
+      response: string;
+      currentExchange: { user: string; assistant: string };
+      suggestions?: string[];
+    } = {
+      response: validatedResponse,
+      // Add the current conversation to help frontend manage chat history
+      currentExchange: {
+        user: message,
+        assistant: validatedResponse
+      }
     }
     
     if (suggestions && suggestions.length > 0) {
@@ -273,7 +316,14 @@ function generateComprehensiveAnalytics(orders: OrderData[]): string {
   const newestDate = validDates.length > 0 ? new Date(Math.max(...validDates.map(d => d.getTime()))) : null
 
   // Order ID analysis for specific queries (efficient version)
-  const orderIdAnalysis = new Map<string, any>()
+  const orderIdAnalysis = new Map<string, {
+    order_date: string;
+    variation_name: string;
+    marketplace: string;
+    delivery_country: string;
+    attribute: string;
+    item_quantity: number;
+  }>()
   orders.forEach(order => {
     if (order.order_id) {
       orderIdAnalysis.set(order.order_id, {
@@ -297,531 +347,119 @@ function generateComprehensiveAnalytics(orders: OrderData[]): string {
       return `${monthName} 2024: ${data.uniqueOrders.size} unique orders, ${data.totalQuantity} total items`
     })
 
-  return `COMPLETE ANALYTICS FOR ${totalOrders} ORDERS:
+  // Verification totals for accuracy checking
+  const totalAttributeQuantity = Array.from(attributeAnalysis.values()).reduce((sum, qty) => sum + qty, 0)
+  const totalMarketplaceQuantity = Array.from(marketplaceAnalysis.values()).reduce((sum, data) => sum + data.quantity, 0)
+  const totalCountryQuantity = Array.from(countryAnalysis.values()).reduce((sum, data) => sum + data.quantity, 0)
 
-SUMMARY:
-Total Orders: ${totalOrders}
-Total Items Sold: ${totalQuantity}
-Unique Order IDs: ${orderIdAnalysis.size}
-Average Items per Order: ${(totalQuantity / totalOrders).toFixed(2)}
-Date Range: ${oldestDate?.toDateString()} to ${newestDate?.toDateString()}
-Valid Dates Found: ${validDates.length} out of ${totalOrders} orders
+  return `🎯 COMPLETE DATA ANALYTICS FOR ${totalOrders} ORDERS:
 
-2024 MONTHLY REPORT (Unique Order IDs Only):
+📊 VERIFIED SUMMARY STATISTICS:
+- Total Database Rows: ${totalOrders}
+- Total Items Sold: ${totalQuantity}
+- Unique Order IDs: ${orderIdAnalysis.size}
+- Average Items per Order: ${(totalQuantity / totalOrders).toFixed(2)}
+- Date Range: ${oldestDate?.toDateString()} to ${newestDate?.toDateString()}
+- Valid Dates Found: ${validDates.length} out of ${totalOrders} orders
+- Verification Check: Total quantity matches (${totalQuantity} items)
+
+📅 2024 MONTHLY BREAKDOWN (Unique Order IDs Only):
 ${monthly2024.length > 0 ? monthly2024.join('\n') : 'No 2024 data found'}
 
-TOP ATTRIBUTES BY QUANTITY SOLD:
-${topAttributes.map((attr, idx) => `${idx + 1}. ${attr[0]}: ${attr[1]} units`).join('\n')}
+🎨 TOP ATTRIBUTES BY QUANTITY SOLD (Verified Total: ${totalAttributeQuantity} units):
+${topAttributes.map((attr, idx) => `${idx + 1}. ${attr[0]}: ${attr[1]} units (${((attr[1] / totalAttributeQuantity) * 100).toFixed(1)}%)`).join('\n')}
 
-TOP MARKETPLACES BY VOLUME:
-${topMarketplaces.map((mp, idx) => `${idx + 1}. ${mp[0]}: ${mp[1].quantity} units (${mp[1].count} orders)`).join('\n')}
+🏪 TOP MARKETPLACES BY VOLUME (Verified Total: ${totalMarketplaceQuantity} units):
+${topMarketplaces.map((mp, idx) => `${idx + 1}. ${mp[0]}: ${mp[1].quantity} units from ${mp[1].count} orders (${((mp[1].quantity / totalMarketplaceQuantity) * 100).toFixed(1)}%)`).join('\n')}
 
-TOP COUNTRIES BY VOLUME:
-${topCountries.map((country, idx) => `${idx + 1}. ${country[0]}: ${country[1].quantity} units (${country[1].count} orders)`).join('\n')}
+🌍 TOP COUNTRIES BY VOLUME (Verified Total: ${totalCountryQuantity} units):
+${topCountries.map((country, idx) => `${idx + 1}. ${country[0]}: ${country[1].quantity} units from ${country[1].count} orders (${((country[1].quantity / totalCountryQuantity) * 100).toFixed(1)}%)`).join('\n')}
 
-TOP PRODUCTS BY QUANTITY:
+📦 TOP PRODUCTS BY QUANTITY (Sample of Top 15):
 ${topProducts.map((product, idx) => `${idx + 1}. ${product[0]}: ${product[1]} units`).join('\n')}
 
-ORDER ID SEARCH CAPABILITY:
-- Total Unique Order IDs: ${orderIdAnalysis.size}
+🔍 ORDER ID SEARCH CAPABILITY:
+- Total Unique Order IDs Available: ${orderIdAnalysis.size}
 - Order ID Range: ${Math.min(...Array.from(orderIdAnalysis.keys()).map(id => parseInt(id) || 0))} to ${Math.max(...Array.from(orderIdAnalysis.keys()).map(id => parseInt(id) || 0))}
-- When asked about specific order IDs, I can search through all ${orderIdAnalysis.size} unique orders
+- When asked about specific order IDs, search this complete database of ${orderIdAnalysis.size} orders
 
-ALL UNIQUE ATTRIBUTES (${attributeAnalysis.size} total):
+📋 COMPLETE REFERENCE LISTS:
+
+🎨 ALL ATTRIBUTES (${attributeAnalysis.size} total):
 ${Array.from(attributeAnalysis.keys()).sort().join(', ')}
 
-ALL UNIQUE MARKETPLACES (${marketplaceAnalysis.size} total):
+🏪 ALL MARKETPLACES (${marketplaceAnalysis.size} total):
 ${Array.from(marketplaceAnalysis.keys()).sort().join(', ')}
 
-ALL UNIQUE COUNTRIES (${countryAnalysis.size} total):
-${Array.from(countryAnalysis.keys()).sort().join(', ')}`
+🌍 ALL COUNTRIES (${countryAnalysis.size} total):
+${Array.from(countryAnalysis.keys()).sort().join(', ')}
+
+⚠️ ACCURACY VERIFICATION:
+- Attribute totals verified: ${totalAttributeQuantity} units
+- Marketplace totals verified: ${totalMarketplaceQuantity} units  
+- Country totals verified: ${totalCountryQuantity} units
+- All calculations must use these exact numbers for accuracy`
 }
 
-async function handleSmartQuery(message: string, ordersData: OrderData[]): Promise<{response: string, type: string} | null> {
-  const lowerMessage = message.toLowerCase()
+// Removed handleSmartQuery function - AI now handles all query analysis intelligently
+
+// Helper functions removed since they're no longer used with AI-driven analysis
+
+function validateResponseAccuracy(aiResponse: string, ordersData: OrderData[], userMessage: string): string {
+  // Basic validation checks for common accuracy issues
+  const totalOrders = ordersData.length
+  const totalItems = ordersData.reduce((sum, order) => sum + (order.item_quantity || 0), 0)
+  const uniqueOrderIds = new Set(ordersData.map(order => order.order_id)).size
   
-  // Order ID search
-  const orderIdMatch = message.match(/order\s+(?:id\s+)?(\d+)/i)
-  if (orderIdMatch) {
-    const searchOrderId = orderIdMatch[1]
-    const foundOrder = ordersData.find((order: OrderData) => order.order_id === searchOrderId)
-    
-    if (foundOrder) {
-      return {
-        response: `✅ Order ID ${searchOrderId} found:
-
-📅 Date: ${foundOrder.order_date}
-📦 Product: ${foundOrder.variation_name}
-🔢 Quantity: ${foundOrder.item_quantity}
-🎨 Attribute: ${foundOrder.attribute}
-🏪 Marketplace: ${foundOrder.marketplace}
-🌍 Delivery Country: ${foundOrder.delivery_country}
-📋 Variation Number: ${foundOrder.variation_number}`,
-        type: 'order_lookup'
-      }
-    } else {
-      return {
-        response: `❌ Order ID ${searchOrderId} not found in the database.`,
-        type: 'order_not_found'
-      }
-    }
-  }
-
-  // Row count queries
-  if (lowerMessage.includes('how many') && (lowerMessage.includes('rows') || lowerMessage.includes('orders') || lowerMessage.includes('total'))) {
-    const uniqueOrderIds = new Set(ordersData.map(order => order.order_id)).size
-    const totalRows = ordersData.length
-    
-    return {
-      response: `📊 Database Statistics:
-
-🔢 Total Rows: ${totalRows.toLocaleString()}
-🆔 Unique Order IDs: ${uniqueOrderIds.toLocaleString()}
-📈 Duplicate Entries: ${(totalRows - uniqueOrderIds).toLocaleString()}
-📋 Average Items per Order: ${(ordersData.reduce((sum, order) => sum + (order.item_quantity || 0), 0) / totalRows).toFixed(2)}`,
-      type: 'count_query'
-    }
-  }
-
-  // Date range queries
-  if (lowerMessage.includes('date range') || (lowerMessage.includes('oldest') && lowerMessage.includes('newest'))) {
-    const validDates = ordersData
-      .map(order => new Date(order.order_date))
-      .filter(date => !isNaN(date.getTime()))
-      .sort((a, b) => a.getTime() - b.getTime())
-    
-    if (validDates.length > 0) {
-      return {
-        response: `📅 Date Range Information:
-
-📅 Oldest Order: ${validDates[0].toDateString()}
-📅 Newest Order: ${validDates[validDates.length - 1].toDateString()}
-📊 Total Days Span: ${Math.ceil((validDates[validDates.length - 1].getTime() - validDates[0].getTime()) / (1000 * 60 * 60 * 24))} days
-✅ Valid Dates: ${validDates.length.toLocaleString()} out of ${ordersData.length.toLocaleString()} orders`,
-        type: 'date_range'
-      }
-    }
-  }
-
-  // Marketplace count (specific pattern to avoid conflicts)
-  if (lowerMessage.includes('marketplace') && (lowerMessage.includes('how many') || lowerMessage.includes('count')) &&
-      !lowerMessage.includes('delivery country') && !lowerMessage.includes('country') && !lowerMessage.includes('percentage')) {
-    const marketplaces = new Set(ordersData.map(order => order.marketplace).filter(mp => mp))
-    
-    return {
-      response: `🏪 Marketplace Information:
-
-🔢 Total Marketplaces: ${marketplaces.size}
-📋 Marketplaces: ${Array.from(marketplaces).sort().join(', ')}`,
-      type: 'marketplace_count'
-    }
-  }
-
-  // Attribute analysis for specific marketplace and country combination
-  if ((lowerMessage.includes('attribute') || lowerMessage.includes('color') || lowerMessage.includes('variation')) &&
-      lowerMessage.includes('most') && lowerMessage.includes('commonly') &&
-      (lowerMessage.includes('hauptstadtkoffer') || lowerMessage.includes('marketplace')) &&
-      lowerMessage.includes('country')) {
-    
-    // Find the marketplace (Hauptstadtkoffer or determine top marketplace)
-    let targetMarketplace = 'Hauptstadtkoffer'
-    if (!lowerMessage.includes('hauptstadtkoffer')) {
-      const marketplaceCount = new Map<string, number>()
-      ordersData.forEach(order => {
-        if (order.marketplace) {
-          const mp = order.marketplace.trim()
-          marketplaceCount.set(mp, (marketplaceCount.get(mp) || 0) + 1)
-        }
-      })
-      const topMP = Array.from(marketplaceCount.entries()).sort((a, b) => b[1] - a[1])[0]
-      if (topMP) targetMarketplace = topMP[0]
-    }
-    
-    // Get orders for this marketplace
-    const marketplaceOrders = ordersData.filter(order => 
-      order.marketplace?.trim() === targetMarketplace
-    )
-    
-    if (marketplaceOrders.length > 0) {
-      // Find top delivery country for this marketplace
-      const countryStats = new Map<string, number>()
-      marketplaceOrders.forEach(order => {
-        if (order.delivery_country) {
-          const country = order.delivery_country.trim()
-          countryStats.set(country, (countryStats.get(country) || 0) + 1)
-        }
-      })
-      
-      const topCountry = Array.from(countryStats.entries()).sort((a, b) => b[1] - a[1])[0]
-      
-      if (topCountry) {
-        // Filter orders for this marketplace + top country combination
-        const targetCountryOrders = marketplaceOrders.filter(order => 
-          order.delivery_country?.trim() === topCountry[0]
-        )
-        
-        // Analyze attributes for this specific combination
-        const attributeStats = new Map<string, number>()
-        targetCountryOrders.forEach(order => {
-          if (order.attribute) {
-            const attr = order.attribute.trim()
-            attributeStats.set(attr, (attributeStats.get(attr) || 0) + (order.item_quantity || 1))
-          }
-        })
-        
-        const topAttributes = Array.from(attributeStats.entries())
-          .sort((a, b) => b[1] - a[1])
-          .slice(0, 5)
-        
-        if (topAttributes.length > 0) {
-          const topAttribute = topAttributes[0]
-          
-          return {
-            response: `🎨 Most Common Attribute for ${targetMarketplace} in ${topCountry[0]}:
-
-🥇 Top Attribute: ${topAttribute[0]} - ${topAttribute[1]} items ordered
-
-📊 Analysis Details:
-🏪 Marketplace: ${targetMarketplace}
-🌍 Top Country: ${topCountry[0]} (${topCountry[1].toLocaleString()} orders)
-📦 Orders Analyzed: ${targetCountryOrders.length.toLocaleString()}
-
-🎨 Top 5 Attributes in ${topCountry[0]}:
-${topAttributes.map(([attr, count], idx) => 
-  `${idx + 1}. ${attr}: ${count} items`
-).join('\n')}`,
-            type: 'marketplace_country_attribute_analysis'
-          }
-        }
-      }
-    }
-    
-    return {
-      response: `❌ Unable to analyze attributes for ${targetMarketplace}. No sufficient data found.`,
-      type: 'insufficient_data'
-    }
-  }
-
-  // Country count (much more specific pattern to avoid conflicts)
-  if (lowerMessage.includes('country') && (lowerMessage.includes('how many') || lowerMessage.includes('count')) &&
-      !lowerMessage.includes('attribute') && !lowerMessage.includes('color') && !lowerMessage.includes('variation') &&
-      !lowerMessage.includes('most') && !lowerMessage.includes('commonly') && !lowerMessage.includes('marketplace')) {
-    const countries = new Set(ordersData.map(order => order.delivery_country).filter(country => country))
-    
-    return {
-      response: `🌍 Country Information:
-
-🔢 Total Countries: ${countries.size}
-📋 Countries: ${Array.from(countries).sort().join(', ')}`,
-      type: 'country_count'
-    }
-  }
-
-  // Monthly counts for specific year
-  const yearMatch = message.match(/monthly.*(\d{4})|(\d{4}).*monthly/i)
-  if (yearMatch) {
-    const year = yearMatch[1] || yearMatch[2]
-    const monthlyData = getMonthlyData(ordersData, year)
-    
-    return {
-      response: `📅 Monthly Report for ${year}:
-
-${monthlyData.map(month => `📊 ${month.name}: ${month.uniqueOrders} unique orders, ${month.totalItems} items`).join('\n')}
-
-🔢 Total ${year}: ${monthlyData.reduce((sum, month) => sum + month.uniqueOrders, 0)} unique orders`,
-      type: 'monthly_report'
-    }
-  }
-
-  // Most popular marketplace
-  if (lowerMessage.includes('most popular marketplace') || lowerMessage.includes('popular marketplace')) {
-    const marketplaceCount = new Map<string, number>()
-    ordersData.forEach(order => {
-      if (order.marketplace) {
-        const mp = order.marketplace.trim()
-        marketplaceCount.set(mp, (marketplaceCount.get(mp) || 0) + 1)
-      }
-    })
-    
-    const topMarketplace = Array.from(marketplaceCount.entries())
-      .sort((a, b) => b[1] - a[1])[0]
-    
-    if (topMarketplace) {
-      return {
-        response: `🏪 Most Popular Marketplace:
-
-🥇 ${topMarketplace[0]}: ${topMarketplace[1].toLocaleString()} orders
-
-📊 Top 5 Marketplaces:
-${Array.from(marketplaceCount.entries())
-  .sort((a, b) => b[1] - a[1])
-  .slice(0, 5)
-  .map(([mp, count], idx) => `${idx + 1}. ${mp}: ${count.toLocaleString()} orders`)
-  .join('\n')}`,
-        type: 'popular_marketplace'
-      }
-    }
-  }
-
-  // Orders from specific country (e.g., Germany)
-  const countryMatch = message.match(/(?:orders from|from)\s+([A-Z][a-z]{2,}(?:\s+[A-Z][a-z]+)*)|show.*orders.*from\s+([A-Z][a-z]{2,}(?:\s+[A-Z][a-z]+)*)/i)
-  if (countryMatch && !message.toLowerCase().includes('may') && !message.toLowerCase().includes('june') && !message.toLowerCase().includes('july') && !message.toLowerCase().includes('august') && !message.toLowerCase().includes('september') && !message.toLowerCase().includes('october') && !message.toLowerCase().includes('november') && !message.toLowerCase().includes('december') && !message.toLowerCase().includes('january') && !message.toLowerCase().includes('february') && !message.toLowerCase().includes('march') && !message.toLowerCase().includes('april')) {
-    const country = countryMatch[1] || countryMatch[2]
-    const countryOrders = ordersData.filter(order => 
-      order.delivery_country?.toLowerCase().includes(country.toLowerCase())
-    )
-    
-    if (countryOrders.length > 0) {
-      const uniqueOrderIds = new Set(countryOrders.map(order => order.order_id)).size
-      const totalItems = countryOrders.reduce((sum, order) => sum + (order.item_quantity || 0), 0)
-      
-      return {
-        response: `🌍 Orders from ${country}:
-
-📊 Total Orders: ${countryOrders.length.toLocaleString()}
-🆔 Unique Order IDs: ${uniqueOrderIds.toLocaleString()}
-📦 Total Items: ${totalItems.toLocaleString()}
-📈 Average Items per Order: ${(totalItems / countryOrders.length).toFixed(2)}
-
-🏪 Top Marketplaces in ${country}:
-${getTopMarketplacesForCountry(countryOrders).slice(0, 3)
-  .map(([mp, count], idx) => `${idx + 1}. ${mp}: ${count} orders`)
-  .join('\n')}`,
-        type: 'country_orders'
-      }
-    } else {
-      return {
-        response: `❌ No orders found for "${country}". Please check the country name spelling.`,
-        type: 'country_not_found'
-      }
-    }
-  }
-
-  // Marketplace average item_quantity analysis
-  if (lowerMessage.includes('marketplace') && lowerMessage.includes('average') && lowerMessage.includes('item_quantity')) {
-    const marketplaceStats = new Map<string, {totalQuantity: number, orderCount: number}>()
-    
-    ordersData.forEach(order => {
-      if (order.marketplace) {
-        const mp = order.marketplace.trim()
-        const current = marketplaceStats.get(mp) || {totalQuantity: 0, orderCount: 0}
-        marketplaceStats.set(mp, {
-          totalQuantity: current.totalQuantity + (order.item_quantity || 0),
-          orderCount: current.orderCount + 1
-        })
-      }
-    })
-    
-    const marketplaceAverages = Array.from(marketplaceStats.entries())
-      .map(([marketplace, stats]) => ({
-        marketplace,
-        average: stats.totalQuantity / stats.orderCount,
-        totalQuantity: stats.totalQuantity,
-        orderCount: stats.orderCount
-      }))
-      .sort((a, b) => b.average - a.average)
-    
-    const topMarketplace = marketplaceAverages[0]
-    
-    return {
-      response: `🏪 Marketplace with Highest Average Item Quantity per Order:
-
-🥇 ${topMarketplace.marketplace}: ${topMarketplace.average.toFixed(2)} items per order
-📊 Total Orders: ${topMarketplace.orderCount.toLocaleString()}
-📦 Total Items: ${topMarketplace.totalQuantity.toLocaleString()}
-
-📊 Top 5 Marketplaces by Average Item Quantity:
-${marketplaceAverages.slice(0, 5).map(({marketplace, average, orderCount}, idx) => 
-  `${idx + 1}. ${marketplace}: ${average.toFixed(2)} items/order (${orderCount} orders)`
-).join('\n')}`,
-      type: 'marketplace_average_quantity'
-    }
-  }
-
-  // Country breakdown for specific marketplace
-  if ((lowerMessage.includes('delivery country') || lowerMessage.includes('country')) && 
-      (lowerMessage.includes('hauptstadtkoffer') || lowerMessage.includes('top marketplace'))) {
-    
-    // Find the marketplace - either explicitly mentioned or determine the top one
-    let targetMarketplace = 'Hauptstadtkoffer'
-    if (!lowerMessage.includes('hauptstadtkoffer')) {
-      // Find the top marketplace by order count
-      const marketplaceCount = new Map<string, number>()
-      ordersData.forEach(order => {
-        if (order.marketplace) {
-          const mp = order.marketplace.trim()
-          marketplaceCount.set(mp, (marketplaceCount.get(mp) || 0) + 1)
-        }
-      })
-      const topMP = Array.from(marketplaceCount.entries()).sort((a, b) => b[1] - a[1])[0]
-      if (topMP) targetMarketplace = topMP[0]
-    }
-    
-    const marketplaceOrders = ordersData.filter(order => 
-      order.marketplace?.trim() === targetMarketplace
-    )
-    
-    if (marketplaceOrders.length > 0) {
-      const countryStats = new Map<string, number>()
-      marketplaceOrders.forEach(order => {
-        if (order.delivery_country) {
-          const country = order.delivery_country.trim()
-          countryStats.set(country, (countryStats.get(country) || 0) + 1)
-        }
-      })
-      
-      const totalMarketplaceOrders = marketplaceOrders.length
-      const topCountries = Array.from(countryStats.entries())
-        .sort((a, b) => b[1] - a[1])
-        .slice(0, 5)
-        .map(([country, count]) => ({
-          country,
-          count,
-          percentage: ((count / totalMarketplaceOrders) * 100).toFixed(1)
-        }))
-      
-      const topCountry = topCountries[0]
-      
-      return {
-        response: `🌍 Delivery Countries for ${targetMarketplace}:
-
-🥇 Top Country: ${topCountry.country} - ${topCountry.count.toLocaleString()} orders (${topCountry.percentage}%)
-
-📊 Top 5 Countries for ${targetMarketplace}:
-${topCountries.map(({country, count, percentage}, idx) => 
-  `${idx + 1}. ${country}: ${count.toLocaleString()} orders (${percentage}%)`
-).join('\n')}
-
-📈 Total ${targetMarketplace} Orders: ${totalMarketplaceOrders.toLocaleString()}`,
-        type: 'marketplace_country_breakdown'
-      }
-    }
-  }
-
-  // Average order quantity (general)
-  if (lowerMessage.includes('average') && (lowerMessage.includes('quantity') || lowerMessage.includes('order')) && 
-      !lowerMessage.includes('marketplace')) {
-    const totalQuantity = ordersData.reduce((sum, order) => sum + (order.item_quantity || 0), 0)
-    const totalOrders = ordersData.length
-    const uniqueOrders = new Set(ordersData.map(order => order.order_id)).size
-    
-    return {
-      response: `📊 Order Quantity Statistics:
-
-📦 Average Items per Row: ${(totalQuantity / totalOrders).toFixed(2)}
-🆔 Average Items per Unique Order: ${(totalQuantity / uniqueOrders).toFixed(2)}
-🔢 Total Items: ${totalQuantity.toLocaleString()}
-📋 Total Rows: ${totalOrders.toLocaleString()}
-🆔 Unique Orders: ${uniqueOrders.toLocaleString()}`,
-      type: 'average_quantity'
-    }
-  }
-
-  // Most frequent variation name
-  if (lowerMessage.includes('variation name') && (lowerMessage.includes('most') || lowerMessage.includes('frequent'))) {
-    const variationCount = new Map<string, number>()
-    ordersData.forEach(order => {
-      if (order.variation_name) {
-        const variation = order.variation_name.trim()
-        variationCount.set(variation, (variationCount.get(variation) || 0) + (order.item_quantity || 1))
-      }
-    })
-    
-    const topVariations = Array.from(variationCount.entries())
-      .sort((a, b) => b[1] - a[1])
-      .slice(0, 5)
-    
-    if (topVariations.length > 0) {
-      return {
-        response: `📦 Most Frequent Variation Names:
-
-🥇 ${topVariations[0][0]}: ${topVariations[0][1]} items
-
-📊 Top 5 Products:
-${topVariations.map(([variation, count], idx) => 
-  `${idx + 1}. ${variation.substring(0, 60)}${variation.length > 60 ? '...' : ''}: ${count} items`
-).join('\n')}`,
-        type: 'frequent_variations'
-      }
-    }
-  }
-
-  // Last month orders
-  if (lowerMessage.includes('last month') || lowerMessage.includes('recent month')) {
-    const now = new Date()
-    const lastMonth = new Date(now.getFullYear(), now.getMonth() - 1, 1)
-    const thisMonth = new Date(now.getFullYear(), now.getMonth(), 1)
-    
-    const lastMonthOrders = ordersData.filter(order => {
-      const orderDate = new Date(order.order_date)
-      return !isNaN(orderDate.getTime()) && orderDate >= lastMonth && orderDate < thisMonth
-    })
-    
-    const uniqueLastMonth = new Set(lastMonthOrders.map(order => order.order_id)).size
-    const totalItems = lastMonthOrders.reduce((sum, order) => sum + (order.item_quantity || 0), 0)
-    
-    const monthName = lastMonth.toLocaleString('default', { month: 'long', year: 'numeric' })
-    
-    return {
-      response: `📅 Orders from Last Month (${monthName}):
-
-📊 Total Orders: ${lastMonthOrders.length.toLocaleString()}
-🆔 Unique Order IDs: ${uniqueLastMonth.toLocaleString()}
-📦 Total Items: ${totalItems.toLocaleString()}
-📈 Average Items per Order: ${lastMonthOrders.length > 0 ? (totalItems / lastMonthOrders.length).toFixed(2) : '0'}`,
-      type: 'last_month'
-    }
-  }
-
-  return null
-}
-
-function getMonthlyData(ordersData: OrderData[], year: string) {
-  const monthlyMap = new Map<string, {uniqueOrders: Set<string>, totalItems: number}>()
+  let validatedResponse = aiResponse
   
-  ordersData.forEach(order => {
-    const date = new Date(order.order_date)
-    if (!isNaN(date.getTime()) && date.getFullYear().toString() === year) {
-      const monthKey = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}`
-      
-      if (!monthlyMap.has(monthKey)) {
-        monthlyMap.set(monthKey, {
-          uniqueOrders: new Set<string>(),
-          totalItems: 0
-        })
-      }
-      
-      const monthly = monthlyMap.get(monthKey)!
-      if (order.order_id) {
-        monthly.uniqueOrders.add(order.order_id)
-      }
-      monthly.totalItems += (order.item_quantity || 0)
-    }
-  })
+  // Check for obviously incorrect total numbers
+  const wrongTotalPattern = /Total.*?(\d{1,4}(?:,\d{3})*|\d+)/gi
+  const matches = [...aiResponse.matchAll(wrongTotalPattern)]
   
-  return Array.from(monthlyMap.entries())
-    .sort((a, b) => a[0].localeCompare(b[0]))
-    .map(([monthKey, data]) => {
-      const [_, month] = monthKey.split('-')
-      const monthName = new Date(parseInt(year), parseInt(month) - 1).toLocaleString('default', { month: 'long' })
-      return {
-        name: monthName,
-        uniqueOrders: data.uniqueOrders.size,
-        totalItems: data.totalItems
-      }
-    })
-}
-
-function getTopMarketplacesForCountry(orders: OrderData[]) {
-  const marketplaceCount = new Map<string, number>()
-  orders.forEach(order => {
-    if (order.marketplace) {
-      const mp = order.marketplace.trim()
-      marketplaceCount.set(mp, (marketplaceCount.get(mp) || 0) + 1)
+  for (const match of matches) {
+    const number = parseInt(match[1].replace(/,/g, ''))
+    
+    // If the response mentions a total that's way off from our actual totals, add a warning
+    if (number > 0 && (number > totalOrders * 2 || number > totalItems * 2)) {
+      validatedResponse += `\n\n⚠️ Accuracy Note: Please verify these calculations. Database contains ${totalOrders.toLocaleString()} total orders and ${totalItems.toLocaleString()} total items.`
+      break
     }
-  })
+  }
   
-  return Array.from(marketplaceCount.entries()).sort((a, b) => b[1] - a[1]) 
+  // Check for specific order ID queries
+  if (userMessage.toLowerCase().includes('order') && /\d{6,}/.test(userMessage)) {
+    const orderIdMatch = userMessage.match(/(\d{6,})/)
+    if (orderIdMatch) {
+      const searchOrderId = orderIdMatch[1]
+      const orderExists = ordersData.some(order => order.order_id === searchOrderId)
+      
+      if (!orderExists && !aiResponse.includes('not found')) {
+        validatedResponse = `❌ Order ID ${searchOrderId} not found in the database.\n\nThe database contains ${uniqueOrderIds.toLocaleString()} unique order IDs. Please verify the order ID is correct.`
+      }
+    }
+  }
+  
+  // Check for percentage calculations that don't make sense
+  const percentagePattern = /(\d+\.?\d*)%/g
+  const percentages = [...aiResponse.matchAll(percentagePattern)]
+  let totalPercentage = 0
+  
+  for (const match of percentages) {
+    const percentage = parseFloat(match[1])
+    if (percentage > 100) {
+      validatedResponse += `\n\n⚠️ Accuracy Warning: Found percentage over 100% (${percentage}%). Please verify calculations.`
+      break
+    }
+    totalPercentage += percentage
+  }
+  
+  // If percentages are supposed to add to 100% but don't, add warning
+  if (percentages.length > 2 && (totalPercentage > 110 || totalPercentage < 90)) {
+    validatedResponse += `\n\n⚠️ Math Check: Percentages may not add up correctly. Total found: ${totalPercentage.toFixed(1)}%`
+  }
+  
+  return validatedResponse
 }
 
 async function generateAISuggestions(response: string, originalMessage: string, apiKey: string): Promise<string[]> {

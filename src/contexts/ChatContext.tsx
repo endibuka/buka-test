@@ -5,6 +5,8 @@ import { createContext, useContext, useState, ReactNode } from 'react'
 interface ChatContextType {
   currentChatId: string | null
   setCurrentChatId: (id: string | null) => void
+  currentChatTitle: string | null
+  setCurrentChatTitle: (title: string | null) => void
   onNewChat: (() => void) | null
   setOnNewChat: (fn: () => void) => void
   onLoadChat: ((chatId: string) => void) | null
@@ -15,6 +17,7 @@ const ChatContext = createContext<ChatContextType | undefined>(undefined)
 
 export function ChatProvider({ children }: { children: ReactNode }) {
   const [currentChatId, setCurrentChatId] = useState<string | null>(null)
+  const [currentChatTitle, setCurrentChatTitle] = useState<string | null>(null)
   const [onNewChat, setOnNewChat] = useState<(() => void) | null>(null)
   const [onLoadChat, setOnLoadChat] = useState<((chatId: string) => void) | null>(null)
 
@@ -22,6 +25,8 @@ export function ChatProvider({ children }: { children: ReactNode }) {
     <ChatContext.Provider value={{
       currentChatId,
       setCurrentChatId,
+      currentChatTitle,
+      setCurrentChatTitle,
       onNewChat,
       setOnNewChat,
       onLoadChat,

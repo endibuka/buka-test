@@ -37,7 +37,7 @@ export default function DashboardLayout({ children }: DashboardLayoutProps) {
   const [sidebarOpen, setSidebarOpen] = useState(false)
   const [isManualToggle, setIsManualToggle] = useState(false)
   const { theme, toggleTheme } = useTheme()
-  const { currentChatId, onNewChat, onLoadChat } = useChatContext()
+  const { currentChatId, currentChatTitle, onNewChat, onLoadChat } = useChatContext()
   
   // Initialize sidebar state from localStorage immediately
   const [sidebarCollapsed, setSidebarCollapsed] = useState(() => {
@@ -78,40 +78,33 @@ export default function DashboardLayout({ children }: DashboardLayoutProps) {
             <Bars3Icon className="h-5 w-5" aria-hidden="true" />
           </button>
 
-
-
-          <div className="flex flex-1 gap-x-4 self-stretch lg:gap-x-6">
+          <div className="flex flex-1 justify-between items-center">
+            {/* Left side - Page info (for non-chat pages) or Chat title (for chat page) */}
             <div className="flex items-center gap-x-4 lg:gap-x-6">
-              <div>
-                <h1 className="text-lg font-semibold text-gray-900 dark:text-white">{pageInfo.title}</h1>
-                <p className="text-sm text-gray-600 dark:text-gray-300">{pageInfo.description}</p>
-              </div>
+              {pathname !== '/chat' ? (
+                <div>
+                  <h1 className="text-lg font-semibold text-gray-900 dark:text-white">{pageInfo.title}</h1>
+                  <p className="text-sm text-gray-600 dark:text-gray-300">{pageInfo.description}</p>
+                </div>
+              ) : (
+                <div>
+                  <h1 className="text-lg font-semibold text-gray-900 dark:text-white">
+                    {currentChatTitle || (currentChatId ? 'Untitled Chat' : 'Chat Tool')}
+                  </h1>
+                </div>
+              )}
             </div>
             
-            {/* Chat Controls (only on chat page) */}
-            {pathname === '/chat' && onNewChat && onLoadChat && (
-              <div className="flex items-center mr-4">
+            {/* Right side - Chat controls */}
+            <div className="flex items-center gap-x-4">
+              {/* Chat Controls (only on chat page) */}
+              {pathname === '/chat' && onNewChat && onLoadChat && (
                 <ChatControls
                   onNewChat={onNewChat}
                   onLoadChat={onLoadChat}
                   currentChatId={currentChatId}
                 />
-              </div>
-            )}
-            
-            {/* Theme Toggle */}
-            <div className="flex items-center">
-              <button
-                onClick={toggleTheme}
-                className="p-2 text-gray-500 hover:text-gray-900 dark:text-gray-400 dark:hover:text-white transition-colors rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700"
-                aria-label="Toggle theme"
-              >
-                {theme === 'light' ? (
-                  <MoonIcon className="h-5 w-5" />
-                ) : (
-                  <SunIcon className="h-5 w-5" />
-                )}
-              </button>
+              )}
             </div>
           </div>
         </div>

@@ -25,8 +25,19 @@ export default function ChatPage() {
   const [inputMessage, setInputMessage] = useState('')
   const [isLoading, setIsLoading] = useState(false)
   const [dataLoaded, setDataLoaded] = useState(false)
+  const [welcomeShown, setWelcomeShown] = useState(false)
   const messagesEndRef = useRef<HTMLDivElement>(null)
-  const { currentChatId, setCurrentChatId, setOnNewChat, setOnLoadChat } = useChatContext()
+  const { currentChatId, setCurrentChatId, setOnNewChat, setOnLoadChat, setCurrentChatTitle } = useChatContext()
+
+  // Suggested questions
+  const suggestions = [
+    "How many orders do we have?",
+    "What is the most popular marketplace?", 
+    "Show me orders from Germany",
+    "What's the average order quantity?",
+    "Which variation name appears most frequently?",
+    "How many orders were placed in the last month?"
+  ]
 
   // Load orders data and setup chat context on component mount
   useEffect(() => {
@@ -50,6 +61,28 @@ export default function ChatPage() {
     }
   }, [messages, currentChatId])
 
+  // Update chat title when messages change
+  useEffect(() => {
+    if (messages.length > 0) {
+      const title = chatStorage.generateChatTitle(messages)
+      setCurrentChatTitle(title)
+    } else {
+      setCurrentChatTitle(null)
+    }
+  }, [messages, setCurrentChatTitle])
+
+  // Update welcome message when data finishes loading
+  useEffect(() => {
+    if (dataLoaded && messages.length === 1 && messages[0]?.role === 'assistant' && messages[0]?.content.includes('currently loading')) {
+      const updatedWelcomeMessage = {
+        role: 'assistant' as const,
+        content: `Hello! I've loaded ${orders.length} orders from your database. You can ask me questions about your orders data. Click on any suggestion below to get started:`,
+        timestamp: new Date()
+      }
+      setMessages([updatedWelcomeMessage])
+    }
+  }, [dataLoaded, orders.length, messages])
+
   const loadOrdersData = async () => {
     try {
       const { data, error } = await supabase
@@ -59,34 +92,39 @@ export default function ChatPage() {
 
       if (error) {
         console.error('Error loading orders:', error)
-        setMessages(prev => [...prev, {
-          role: 'assistant',
-          content: 'Sorry, I couldn\'t load the orders data. Please make sure you have uploaded orders to Supabase first.',
-          timestamp: new Date()
-        }])
+        if (!welcomeShown) {
+          setMessages(prev => [...prev, {
+            role: 'assistant',
+            content: 'Sorry, I couldn\'t load the orders data. Please make sure you have uploaded orders to Supabase first.',
+            timestamp: new Date()
+          }])
+          setWelcomeShown(true)
+        }
       } else {
         setOrders(data || [])
         setDataLoaded(true)
-        if (!currentChatId) {
-          // Only show welcome message if no active chat
+        // Only show welcome message if no active chat and not already shown
+        if (!currentChatId && !welcomeShown && messages.length === 0) {
           setMessages(prev => [...prev, {
             role: 'assistant',
-            content: `Hello! I've loaded ${data?.length || 0} orders from your database. You can ask me questions about your orders data. Here are some examples you can try:\n\n• "How many orders do we have?"\n• "What is the most popular marketplace?"\n• "Show me orders from Germany"\n• "What's the average order quantity?"\n• "Which variation name appears most frequently?"\n• "How many orders were placed in the last month?"`,
+            content: `Hello! I've loaded ${data?.length || 0} orders from your database. You can ask me questions about your orders data. Click on any suggestion below to get started:`,
             timestamp: new Date()
           }])
+          setWelcomeShown(true)
         }
       }
     } catch (error) {
       console.error('Error loading orders:', error)
-      setMessages(prev => [...prev, {
-        role: 'assistant',
-        content: 'Error loading orders data. Please try again.',
-        timestamp: new Date()
-      }])
+      if (!welcomeShown) {
+        setMessages(prev => [...prev, {
+          role: 'assistant',
+          content: 'Error loading orders data. Please try again.',
+          timestamp: new Date()
+        }])
+        setWelcomeShown(true)
+      }
     }
   }
-
-
 
   const loadLastActiveChat = () => {
     const lastChatId = localStorage.getItem('lastActiveChatId')
@@ -120,6 +158,7 @@ export default function ChatPage() {
       if (chat) {
         setMessages(chat.messages)
         setCurrentChatId(chat.id)
+        setCurrentChatTitle(chat.title)
         localStorage.setItem('lastActiveChatId', chat.id)
       }
     } catch (error) {
@@ -128,23 +167,35 @@ export default function ChatPage() {
   }
 
   const startNewChat = () => {
+    console.log('Starting new chat...', { dataLoaded, ordersLength: orders.length, welcomeShown })
+    
     const newChatId = chatStorage.generateChatId()
     setCurrentChatId(newChatId)
-    setMessages([])
+    setCurrentChatTitle(null)
+    setWelcomeShown(false)
     localStorage.setItem('lastActiveChatId', newChatId)
 
-    // Add welcome message
-    if (dataLoaded) {
-      setMessages([{
-        role: 'assistant',
-        content: `Hello! I've loaded ${orders.length} orders from your database. You can ask me questions about your orders data. Here are some examples you can try:\n\n• "How many orders do we have?"\n• "What is the most popular marketplace?"\n• "Show me orders from Germany"\n• "What's the average order quantity?"\n• "Which variation name appears most frequently?"\n• "How many orders were placed in the last month?"`,
-        timestamp: new Date()
-      }])
+    // Always show a welcome message, regardless of data state
+    let welcomeContent: string
+    if (dataLoaded && orders.length > 0) {
+      welcomeContent = `Hello! I've loaded ${orders.length} orders from your database. You can ask me questions about your orders data. Click on any suggestion below to get started:`
+    } else {
+      welcomeContent = `Hello! Welcome to the chat tool. I'm currently loading your orders data. Please wait a moment and then you can ask questions about your orders.`
     }
+
+    const welcomeMessage = {
+      role: 'assistant' as const,
+      content: welcomeContent,
+      timestamp: new Date()
+    }
+    
+    console.log('Setting welcome message:', welcomeMessage)
+    setMessages([welcomeMessage])
+    setWelcomeShown(true)
   }
 
-  const sendMessage = async () => {
-    if (!inputMessage.trim() || isLoading) return
+  const handleSuggestionClick = async (suggestion: string) => {
+    if (isLoading) return
 
     // Start new chat if none exists
     if (!currentChatId) {
@@ -153,14 +204,12 @@ export default function ChatPage() {
       localStorage.setItem('lastActiveChatId', newChatId)
     }
 
-    const userMessage = inputMessage.trim()
-    setInputMessage('')
     setIsLoading(true)
 
     // Add user message to chat
     setMessages(prev => [...prev, {
       role: 'user',
-      content: userMessage,
+      content: suggestion,
       timestamp: new Date()
     }])
 
@@ -171,7 +220,7 @@ export default function ChatPage() {
           'Content-Type': 'application/json',
         },
         body: JSON.stringify({
-          message: userMessage,
+          message: suggestion,
           ordersData: orders
         }),
       })
@@ -200,6 +249,12 @@ export default function ChatPage() {
     }
   }
 
+  const sendMessage = async () => {
+    if (!inputMessage.trim() || isLoading) return
+    await handleSuggestionClick(inputMessage.trim())
+    setInputMessage('')
+  }
+
   const handleKeyPress = (e: React.KeyboardEvent) => {
     if (e.key === 'Enter' && !e.shiftKey) {
       e.preventDefault()
@@ -209,79 +264,9 @@ export default function ChatPage() {
 
   return (
     <DashboardLayout>
-      <div className="flex flex-col">
-        {/* Chat History Dropdown */}
-        <div className="mb-4 relative">
-          <div className="flex gap-3">
-            <button
-              onClick={() => setShowChatHistory(!showChatHistory)}
-              className="flex items-center gap-2 px-4 py-2 bg-white dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-600 transition-colors text-sm"
-            >
-              <span className="text-gray-700 dark:text-gray-300">Chat History ({savedChats.length})</span>
-              <ChevronDownIcon className={`h-4 w-4 text-gray-500 transition-transform ${showChatHistory ? 'rotate-180' : ''}`} />
-            </button>
-            
-            <button
-              onClick={startNewChat}
-              className="flex items-center gap-2 px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg transition-colors text-sm"
-            >
-              <PlusIcon className="h-4 w-4" />
-              New Chat
-            </button>
-          </div>
-
-          {/* Chat History Dropdown */}
-          {showChatHistory && (
-            <div className="absolute top-full left-0 mt-2 w-80 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-600 rounded-lg shadow-lg z-10 max-h-64 overflow-y-auto">
-              {savedChats.length === 0 ? (
-                <div className="p-4 text-gray-500 dark:text-gray-400 text-sm">
-                  No saved chats yet. Start a conversation to create your first chat!
-                </div>
-              ) : (
-                savedChats.map((chat) => (
-                  <div
-                    key={chat.id}
-                    className={`p-3 hover:bg-gray-50 dark:hover:bg-gray-700 cursor-pointer border-b border-gray-100 dark:border-gray-700 last:border-b-0 flex justify-between items-start ${
-                      currentChatId === chat.id ? 'bg-blue-50 dark:bg-blue-900/20' : ''
-                    }`}
-                    onClick={() => {
-                      loadChat(chat.id)
-                      setShowChatHistory(false)
-                    }}
-                  >
-                    <div className="flex-1 min-w-0">
-                      <p className="text-sm font-medium text-gray-900 dark:text-gray-100 truncate">
-                        {chat.title}
-                      </p>
-                      <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
-                        {chat.messages.length} messages • {chat.updatedAt.toLocaleDateString()}
-                      </p>
-                    </div>
-                    <button
-                      onClick={(e) => deleteChat(chat.id, e)}
-                      className="ml-2 p-1 text-gray-400 hover:text-red-500 transition-colors"
-                      title="Delete chat"
-                    >
-                      <TrashIcon className="h-4 w-4" />
-                    </button>
-                  </div>
-                ))
-              )}
-            </div>
-          )}
-        </div>
-
-        {/* Current Chat Title */}
-        {currentChatId && messages.length > 0 && (
-          <div className="mb-4 px-4 py-2 bg-gray-50 dark:bg-gray-800 rounded-lg">
-            <h2 className="text-lg font-medium text-gray-900 dark:text-gray-100">
-              {chatStorage.generateChatTitle(messages)}
-            </h2>
-          </div>
-        )}
-
+      <div className="flex flex-col pr-6">
         {/* Chat Container */}
-        <div className="bg-white rounded-lg shadow-sm border border-gray-200 dark:border-gray-700 flex flex-col h-[calc(100vh-12rem)]" style={{ backgroundColor: 'var(--card)' }}>
+        <div className="bg-white rounded-lg shadow-sm border border-gray-200 dark:border-gray-700 flex flex-col h-[calc(100vh-8rem)]" style={{ backgroundColor: 'var(--card)' }}>
           {/* Chat Messages */}
           <div className="flex-1 overflow-y-auto p-6 space-y-4 scrollbar-hide">
             {messages.map((message, index) => (
@@ -307,10 +292,37 @@ export default function ChatPage() {
               </div>
             ))}
             
+            {/* Show suggestions when there's just the welcome message and either data is loaded or we're showing the loading message */}
+            {messages.length === 1 && messages[0]?.role === 'assistant' && (
+              <div className="flex justify-start">
+                <div className="max-w-2xl">
+                  {dataLoaded ? (
+                    <div className="grid grid-cols-1 gap-2 mt-4">
+                      {suggestions.map((suggestion, index) => (
+                        <button
+                          key={index}
+                          onClick={() => handleSuggestionClick(suggestion)}
+                          disabled={isLoading}
+                          className="text-left px-4 py-2 text-sm text-blue-600 dark:text-blue-400 bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-700 rounded-lg hover:bg-blue-100 dark:hover:bg-blue-900/30 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                        >
+                          {suggestion}
+                        </button>
+                      ))}
+                    </div>
+                  ) : (
+                    <div className="mt-4 p-4 bg-gray-50 dark:bg-gray-800 rounded-lg">
+                      <p className="text-sm text-gray-600 dark:text-gray-400">Loading orders data... Please wait.</p>
+                    </div>
+                  )}
+                </div>
+              </div>
+            )}
+            
             {isLoading && (
               <div className="flex justify-start">
-                <div className="bg-gray-50 text-gray-800 dark:text-gray-200 px-4 py-3 rounded-lg border border-gray-200 dark:border-gray-600" style={{ backgroundColor: 'var(--muted)' }}>
-                  <p className="text-sm">Thinking...</p>
+                <div className="bg-gray-50 text-gray-800 dark:text-gray-200 px-4 py-3 rounded-lg thinking-border" 
+                     style={{ backgroundColor: 'var(--muted)' }}>
+                  <p className="text-sm text-blue-600 dark:text-blue-400">Thinking...</p>
                 </div>
               </div>
             )}

@@ -6,8 +6,11 @@ import {
   HomeIcon, 
   ChatBubbleLeftIcon,
   ChevronLeftIcon,
-  ChevronRightIcon
+  ChevronRightIcon,
+  MoonIcon,
+  SunIcon
 } from '@heroicons/react/24/outline'
+import { useTheme } from '@/contexts/ThemeContext'
 
 const navigation = [
   { name: 'Dashboard', href: '/', icon: HomeIcon },
@@ -21,6 +24,7 @@ interface SidebarProps {
 
 export default function Sidebar({ collapsed = false, onToggleCollapse }: SidebarProps) {
   const pathname = usePathname()
+  const { theme, toggleTheme } = useTheme()
 
   return (
     <div className={`hidden md:fixed md:inset-y-0 md:flex md:flex-col transition-all duration-300 ${collapsed ? 'md:w-16' : 'md:w-64'}`}>
@@ -63,11 +67,26 @@ export default function Sidebar({ collapsed = false, onToggleCollapse }: Sidebar
         </div>
         {!collapsed && (
           <div className="flex flex-shrink-0 border-t border-gray-200 dark:border-gray-700 p-4">
-            <div className="flex items-center">
-              <div className="ml-3">
-                <p className="text-sm font-medium text-gray-700 dark:text-gray-300">Admin User</p>
-                <p className="text-xs text-gray-500 dark:text-gray-400">admin@example.com</p>
+            <div className="flex items-center justify-between w-full">
+              <div className="flex items-center">
+                <div className="ml-3">
+                  <p className="text-sm font-medium text-gray-700 dark:text-gray-300">Admin User</p>
+                  <p className="text-xs text-gray-500 dark:text-gray-400">admin@example.com</p>
+                </div>
               </div>
+              
+              {/* Theme Toggle */}
+              <button
+                onClick={toggleTheme}
+                className="p-2 text-gray-500 hover:text-gray-900 dark:text-gray-400 dark:hover:text-white transition-colors rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700"
+                aria-label="Toggle theme"
+              >
+                {theme === 'light' ? (
+                  <MoonIcon className="h-4 w-4" />
+                ) : (
+                  <SunIcon className="h-4 w-4" />
+                )}
+              </button>
             </div>
           </div>
         )}

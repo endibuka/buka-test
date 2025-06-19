@@ -26,11 +26,13 @@ export default function ChatPage() {
   const [isLoading, setIsLoading] = useState(false)
   const [dataLoaded, setDataLoaded] = useState(false)
   const [welcomeShown, setWelcomeShown] = useState(false)
+  const [dataLoadingMode, setDataLoadingMode] = useState<'all' | 'unique' | null>(null)
+  const [dynamicSuggestions, setDynamicSuggestions] = useState<string[]>([])
   const messagesEndRef = useRef<HTMLDivElement>(null)
   const { currentChatId, setCurrentChatId, setOnNewChat, setOnLoadChat, setCurrentChatTitle } = useChatContext()
 
-  // Suggested questions
-  const suggestions = [
+  // Default suggested questions (shown initially)
+  const defaultSuggestions = [
     "How many orders do we have?",
     "What is the most popular marketplace?", 
     "Show me orders from Germany",
@@ -39,9 +41,12 @@ export default function ChatPage() {
     "How many orders were placed in the last month?"
   ]
 
+  // Use dynamic suggestions if available, otherwise show no suggestions for now
+  const currentSuggestions = dynamicSuggestions.length > 0 ? dynamicSuggestions : (messages.length <= 1 ? defaultSuggestions : [])
+
   // Load orders data and setup chat context on component mount
   useEffect(() => {
-    loadOrdersData()
+    // Don't auto-load data, let user choose
     loadLastActiveChat()
     
     // Set up chat functions for header controls
@@ -83,35 +88,80 @@ export default function ChatPage() {
     }
   }, [dataLoaded, orders.length, messages])
 
-  const loadOrdersData = async () => {
+  const loadOrdersData = async (mode: 'all' | 'unique' = 'all') => {
     try {
-      const { data, error } = await supabase
-        .from('orders')
-        .select('*')
-        .order('created_at', { ascending: false })
+      setDataLoadingMode(mode)
+      console.log(`Loading orders data with mode: ${mode}`)
+      
+      // Fetch all orders from Supabase using pagination to avoid limits
+      let allOrders: any[] = []
+      let from = 0
+      const pageSize = 1000
+      let hasMore = true
 
-      if (error) {
-        console.error('Error loading orders:', error)
-        if (!welcomeShown) {
-          setMessages(prev => [...prev, {
-            role: 'assistant',
-            content: 'Sorry, I couldn\'t load the orders data. Please make sure you have uploaded orders to Supabase first.',
-            timestamp: new Date()
-          }])
-          setWelcomeShown(true)
+      while (hasMore) {
+        const { data, error } = await supabase
+          .from('orders')
+          .select('*')
+          .order('created_at', { ascending: false })
+          .range(from, from + pageSize - 1)
+
+        if (error) {
+          console.error('Error loading orders:', error)
+          if (!welcomeShown) {
+            setMessages(prev => [...prev, {
+              role: 'assistant',
+              content: 'Sorry, I couldn\'t load the orders data. Please make sure you have uploaded orders to Supabase first.',
+              timestamp: new Date()
+            }])
+            setWelcomeShown(true)
+          }
+          return
         }
-      } else {
-        setOrders(data || [])
-        setDataLoaded(true)
-        // Only show welcome message if no active chat and not already shown
-        if (!currentChatId && !welcomeShown && messages.length === 0) {
-          setMessages(prev => [...prev, {
-            role: 'assistant',
-            content: `Hello! I've loaded ${data?.length || 0} orders from your database. You can ask me questions about your orders data. Click on any suggestion below to get started:`,
-            timestamp: new Date()
-          }])
-          setWelcomeShown(true)
+
+        if (data && data.length > 0) {
+          allOrders = [...allOrders, ...data]
+          from += pageSize
+          hasMore = data.length === pageSize
+          console.log(`Loaded ${data.length} orders from page ${from/pageSize}, total so far: ${allOrders.length}`)
+        } else {
+          hasMore = false
         }
+      }
+
+      console.log(`Total orders loaded from Supabase: ${allOrders.length}`)
+
+      // If mode is 'unique', filter out duplicate order_ids
+      let finalOrders = allOrders
+      if (mode === 'unique') {
+        const uniqueOrderIds = new Set()
+        finalOrders = allOrders.filter(order => {
+          if (uniqueOrderIds.has(order.order_id)) {
+            return false
+          }
+          uniqueOrderIds.add(order.order_id)
+          return true
+        })
+        console.log(`After filtering unique order_ids: ${finalOrders.length} unique orders`)
+      }
+
+      setOrders(finalOrders)
+      setDataLoaded(true)
+      
+      // Always show the data count after loading
+      const modeText = mode === 'unique' ? 'unique order IDs' : 'all orders'
+      const countMessage = {
+        role: 'assistant' as const,
+        content: `✅ Data loaded successfully! I've loaded ${finalOrders.length} ${modeText} from your Supabase database. You can now ask me questions about your orders data.`,
+        timestamp: new Date()
+      }
+      
+      // Add the count message to the chat
+      setMessages(prev => [...prev, countMessage])
+      
+      // Only show initial welcome if no active chat and not already shown
+      if (!currentChatId && !welcomeShown && messages.length === 1) {
+        setWelcomeShown(true)
       }
     } catch (error) {
       console.error('Error loading orders:', error)
@@ -130,6 +180,14 @@ export default function ChatPage() {
     const lastChatId = localStorage.getItem('lastActiveChatId')
     if (lastChatId) {
       loadChat(lastChatId)
+    } else {
+      // If no existing chat, show data selection options
+      setMessages([{
+        role: 'assistant',
+        content: 'Hello! Welcome to the chat tool. Please choose how you want to load your orders data:',
+        timestamp: new Date()
+      }])
+      setWelcomeShown(true)
     }
   }
 
@@ -160,6 +218,11 @@ export default function ChatPage() {
         setCurrentChatId(chat.id)
         setCurrentChatTitle(chat.title)
         localStorage.setItem('lastActiveChatId', chat.id)
+        
+        // Reset data loading state when loading an existing chat
+        setDataLoaded(false)
+        setDataLoadingMode(null)
+        setOrders([])
       }
     } catch (error) {
       console.error('Error loading chat:', error)
@@ -173,19 +236,16 @@ export default function ChatPage() {
     setCurrentChatId(newChatId)
     setCurrentChatTitle(null)
     setWelcomeShown(false)
+    setDataLoaded(false)
+    setDataLoadingMode(null)
+    setDynamicSuggestions([])
+    setOrders([])
     localStorage.setItem('lastActiveChatId', newChatId)
 
-    // Always show a welcome message, regardless of data state
-    let welcomeContent: string
-    if (dataLoaded && orders.length > 0) {
-      welcomeContent = `Hello! I've loaded ${orders.length} orders from your database. You can ask me questions about your orders data. Click on any suggestion below to get started:`
-    } else {
-      welcomeContent = `Hello! Welcome to the chat tool. I'm currently loading your orders data. Please wait a moment and then you can ask questions about your orders.`
-    }
-
+    // Show data selection message
     const welcomeMessage = {
       role: 'assistant' as const,
-      content: welcomeContent,
+      content: `Hello! Welcome to the chat tool. Please choose how you want to load your orders data:`,
       timestamp: new Date()
     }
     
@@ -214,6 +274,13 @@ export default function ChatPage() {
     }])
 
     try {
+      console.log('Sending to chat API:', {
+        message: suggestion,
+        ordersDataLength: orders.length,
+        sampleOrder: orders[0],
+        orderIds: orders.slice(0, 10).map(o => o.order_id)
+      })
+      
       const response = await fetch('/api/chat', {
         method: 'POST',
         headers: {
@@ -237,6 +304,11 @@ export default function ChatPage() {
         content: data.response,
         timestamp: new Date()
       }])
+
+      // Update dynamic suggestions if provided
+      if (data.suggestions && Array.isArray(data.suggestions)) {
+        setDynamicSuggestions(data.suggestions)
+      }
     } catch (error) {
       console.error('Error sending message:', error)
       setMessages(prev => [...prev, {
@@ -251,6 +323,14 @@ export default function ChatPage() {
 
   const sendMessage = async () => {
     if (!inputMessage.trim() || isLoading) return
+    
+    console.log('sendMessage called with:', {
+      inputMessage: inputMessage.trim(),
+      ordersLength: orders.length,
+      dataLoaded,
+      sampleOrder: orders[0]
+    })
+    
     await handleSuggestionClick(inputMessage.trim())
     setInputMessage('')
   }
@@ -292,28 +372,62 @@ export default function ChatPage() {
               </div>
             ))}
             
-            {/* Show suggestions when there's just the welcome message and either data is loaded or we're showing the loading message */}
-            {messages.length === 1 && messages[0]?.role === 'assistant' && (
+            {/* Show data selection options when data is not loaded */}
+            {!dataLoaded && dataLoadingMode === null && (
               <div className="flex justify-start">
                 <div className="max-w-2xl">
-                  {dataLoaded ? (
-                    <div className="grid grid-cols-1 gap-2 mt-4">
-                      {suggestions.map((suggestion, index) => (
-                        <button
-                          key={index}
-                          onClick={() => handleSuggestionClick(suggestion)}
-                          disabled={isLoading}
-                          className="text-left px-4 py-2 text-sm text-blue-600 dark:text-blue-400 bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-700 rounded-lg hover:bg-blue-100 dark:hover:bg-blue-900/30 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-                        >
-                          {suggestion}
-                        </button>
-                      ))}
-                    </div>
-                  ) : (
-                    <div className="mt-4 p-4 bg-gray-50 dark:bg-gray-800 rounded-lg">
-                      <p className="text-sm text-gray-600 dark:text-gray-400">Loading orders data... Please wait.</p>
-                    </div>
-                  )}
+                  <div className="mt-4 space-y-3">
+                    <p className="text-sm text-gray-600 dark:text-gray-400 mb-3">Choose your data loading option:</p>
+                    <button
+                      onClick={() => loadOrdersData('all')}
+                      disabled={isLoading}
+                      className="w-full text-left px-4 py-3 text-sm bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-700 rounded-lg hover:bg-green-100 dark:hover:bg-green-900/30 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                    >
+                      <div className="font-medium text-green-700 dark:text-green-300">Load All Database Data</div>
+                      <div className="text-xs text-green-600 dark:text-green-400 mt-1">Load all orders including duplicates</div>
+                    </button>
+                    <button
+                      onClick={() => loadOrdersData('unique')}
+                      disabled={isLoading}
+                      className="w-full text-left px-4 py-3 text-sm bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-700 rounded-lg hover:bg-blue-100 dark:hover:bg-blue-900/30 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                    >
+                      <div className="font-medium text-blue-700 dark:text-blue-300">Load Unique Order IDs Only</div>
+                      <div className="text-xs text-blue-600 dark:text-blue-400 mt-1">Remove duplicate order_id entries</div>
+                    </button>
+                  </div>
+                </div>
+              </div>
+            )}
+            
+            {/* Show suggestions when data is loaded */}
+            {dataLoaded && (
+              <div className="flex justify-start">
+                <div className="max-w-2xl">
+                  <div className="grid grid-cols-1 gap-2 mt-4">
+                    {currentSuggestions.map((suggestion, index) => (
+                      <button
+                        key={index}
+                        onClick={() => handleSuggestionClick(suggestion)}
+                        disabled={isLoading}
+                        className="text-left px-4 py-2 text-sm text-blue-600 dark:text-blue-400 bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-700 rounded-lg hover:bg-blue-100 dark:hover:bg-blue-900/30 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                      >
+                        {suggestion}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              </div>
+            )}
+            
+            {/* Show loading message when data is being loaded */}
+            {dataLoadingMode !== null && !dataLoaded && (
+              <div className="flex justify-start">
+                <div className="max-w-2xl">
+                  <div className="mt-4 p-4 bg-gray-50 dark:bg-gray-800 rounded-lg">
+                    <p className="text-sm text-gray-600 dark:text-gray-400">
+                      Loading orders data... Please wait.
+                    </p>
+                  </div>
                 </div>
               </div>
             )}

@@ -61,7 +61,7 @@ export async function GET() {
     'Authorization': `Bearer ${API_TOKEN}`
   };
 
-  const url = "https://www.sagenta.online/rest/catalogs/export/b7c11a23-7016-5b24-aac9-e791aa18ff84/download?hash=8617771ac2070ed46f6e1ccc548b3781&extension=csv";
+  const url = "https://www.sagenta.online/rest/catalogs/export/b7c11a23-7016-5b24-aac9-e791aa18ff84/download?hash=791980b5f2720c9fbe8b2fb2d629718a&extension=csv";
 
   try {
     console.log('Fetching CSV from:', url);

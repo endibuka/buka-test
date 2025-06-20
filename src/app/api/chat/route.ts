@@ -191,6 +191,19 @@ Response Requirements:
 4. Never make assumptions or inferences beyond the available data
 5. For calculations, show your work: "Calculation: X + Y = Z"
 6. If data is insufficient, clearly state limitations
+7. FORMATTING: Use plain text formatting with clear spacing and bullet points. Do NOT use markdown tables or complex formatting. Use simple lists and clear line breaks for readability.
+
+FORMATTING EXAMPLES:
+✅ GOOD: "Based on PRECISE MONTHLY BREAKDOWN:
+
+Best performing months:
+• May 2024: 4,804 orders (7,162 items)
+• April 2024: 4,614 orders (6,586 items)
+• March 2024: 4,443 orders (6,400 items)
+
+Conclusion: May 2024 was the best month with the highest orders and items sold."
+
+❌ BAD: Markdown tables, complex formatting, or unreadable layouts
 
 Validation Rules:
 - No statistical analysis with <10 data points

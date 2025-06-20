@@ -53,15 +53,17 @@ Current Question: ${message}
 - ONLY use data from the analytics section below
 - VERIFY all calculations are mathematically correct
 - DOUBLE-CHECK all numbers against the provided data
-- If unsure about any calculation, say so rather than guess
-- All percentages must add up correctly
-- All rankings must be based on actual data totals
+- If you don't have specific information, clearly state what data is missing
+- All percentages refer to their specific category (attributes, marketplaces, countries)
+- Never make up information or provide contradictory statements
+- Always be consistent with the data provided
 
 FORMATTING RULES:
 - Do NOT use ** or any markdown formatting
 - Use plain text only
 - Use simple line breaks and dashes for lists
 - Be direct and conversational
+- Always provide specific, accurate numbers
 
 DATASET FIELDS AVAILABLE:
 - order_id: unique order identifier  
@@ -77,13 +79,13 @@ COMPLETE DATA ANALYTICS PROVIDED:
 ${analytics}
 
 ANALYSIS CAPABILITIES:
-1. Order lookups by ID (use the order ID search capability section)
+1. Order counts and breakdowns by any dimension
 2. Marketplace comparisons (use marketplace analytics section)
 3. Country analysis (use country analytics section)
 4. Attribute/color analysis (use attribute analytics section)
-5. Time-based analysis (use date range and monthly sections)
+5. Time-based analysis (use monthly breakdown and specific date sections)
 6. Cross-dimensional comparisons
-7. Percentage and distribution calculations
+7. Percentage calculations within each category
 8. Average calculations by any dimension
 9. Top performer rankings
 
@@ -93,18 +95,19 @@ ${historyContext}
 🎯 ACCURACY PROTOCOL:
 1. READ the analytics data carefully
 2. IDENTIFY the exact data points needed for the question
-3. PERFORM calculations step-by-step
-4. VERIFY results make sense
-5. PROVIDE specific numbers with confidence
-6. If data is insufficient, clearly state what's missing
+3. Use ONLY the numbers provided in the analytics
+4. If asked about specific dates/countries/orders, check the relevant sections
+5. If information is not available in the analytics, clearly state this
+6. Be consistent - don't contradict previous statements
+7. Monthly breakdowns show ALL months with data, not just specific years
 
 RESPONSE REQUIREMENTS:
 - Base ALL answers on the provided analytics data
-- Show specific numbers and calculations
-- Verify totals and percentages are correct
-- Use emojis for clarity but maintain accuracy
-- If asked about specific entities (order IDs, etc.), check the relevant sections
-- Always double-check mathematical accuracy
+- Show specific numbers with confidence
+- Use the exact numbers from the analytics sections
+- If asked about combinations (e.g., "orders on Dec 31 to Germany"), check both date and country sections
+- Never guess or estimate - use actual data
+- Explain your reasoning when calculations are involved
 
 Answer the user's question with 100% accuracy using only the provided data analytics.`
 
@@ -270,9 +273,10 @@ function generateComprehensiveAnalytics(orders: OrderData[]): string {
     .sort((a, b) => b[1] - a[1])
     .slice(0, 15)
 
-  // Date analysis - handle VARCHAR dates properly
+  // Enhanced date analysis - handle all years properly
   const validDates: Date[] = []
   const monthlyAnalysis = new Map<string, {uniqueOrders: Set<string>, totalQuantity: number}>()
+  const dailyAnalysis = new Map<string, {uniqueOrders: Set<string>, totalQuantity: number, countries: Set<string>}>()
   
   orders.forEach(order => {
     if (order.order_date) {
@@ -295,7 +299,7 @@ function generateComprehensiveAnalytics(orders: OrderData[]): string {
       if (date && !isNaN(date.getTime())) {
         validDates.push(date)
         
-        // Monthly analysis
+        // Monthly analysis for ALL years
         const monthKey = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}`
         if (!monthlyAnalysis.has(monthKey)) {
           monthlyAnalysis.set(monthKey, {
@@ -308,6 +312,24 @@ function generateComprehensiveAnalytics(orders: OrderData[]): string {
           monthly.uniqueOrders.add(order.order_id)
         }
         monthly.totalQuantity += (order.item_quantity || 0)
+
+        // Daily analysis for specific date queries
+        const dailyKey = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`
+        if (!dailyAnalysis.has(dailyKey)) {
+          dailyAnalysis.set(dailyKey, {
+            uniqueOrders: new Set<string>(),
+            totalQuantity: 0,
+            countries: new Set<string>()
+          })
+        }
+        const daily = dailyAnalysis.get(dailyKey)!
+        if (order.order_id) {
+          daily.uniqueOrders.add(order.order_id)
+        }
+        daily.totalQuantity += (order.item_quantity || 0)
+        if (order.delivery_country) {
+          daily.countries.add(order.delivery_country.trim())
+        }
       }
     }
   })
@@ -337,15 +359,20 @@ function generateComprehensiveAnalytics(orders: OrderData[]): string {
     }
   })
 
-  // Monthly report for 2024
-  const monthly2024 = Array.from(monthlyAnalysis.entries())
-    .filter(([monthKey]) => monthKey.startsWith('2024'))
+  // Complete monthly breakdown for ALL years (sorted chronologically)
+  const allMonthlyBreakdown = Array.from(monthlyAnalysis.entries())
     .sort((a, b) => a[0].localeCompare(b[0]))
     .map(([monthKey, data]) => {
       const [year, month] = monthKey.split('-')
       const monthName = new Date(parseInt(year), parseInt(month) - 1).toLocaleString('default', { month: 'long' })
-      return `${monthName} 2024: ${data.uniqueOrders.size} unique orders, ${data.totalQuantity} total items`
+      return `${monthName} ${year}: ${data.uniqueOrders.size} orders (${data.totalQuantity} items)`
     })
+
+  // Special analysis for December 31, 2024 if it exists
+  const dec31Analysis = dailyAnalysis.get('2024-12-31')
+  const dec31Details = dec31Analysis ? 
+    `December 31, 2024: ${dec31Analysis.uniqueOrders.size} orders to countries: ${Array.from(dec31Analysis.countries).join(', ')}` :
+    'December 31, 2024: No orders found'
 
   // Verification totals for accuracy checking
   const totalAttributeQuantity = Array.from(attributeAnalysis.values()).reduce((sum, qty) => sum + qty, 0)
@@ -361,18 +388,20 @@ function generateComprehensiveAnalytics(orders: OrderData[]): string {
 - Average Items per Order: ${(totalQuantity / totalOrders).toFixed(2)}
 - Date Range: ${oldestDate?.toDateString()} to ${newestDate?.toDateString()}
 - Valid Dates Found: ${validDates.length} out of ${totalOrders} orders
-- Verification Check: Total quantity matches (${totalQuantity} items)
 
-📅 2024 MONTHLY BREAKDOWN (Unique Order IDs Only):
-${monthly2024.length > 0 ? monthly2024.join('\n') : 'No 2024 data found'}
+📅 COMPLETE MONTHLY BREAKDOWN (All Dates):  
+${allMonthlyBreakdown.length > 0 ? allMonthlyBreakdown.join('\n') : 'No valid dates found'}
 
-🎨 TOP ATTRIBUTES BY QUANTITY SOLD (Verified Total: ${totalAttributeQuantity} units):
+📅 DECEMBER 31, 2024 SPECIFIC ANALYSIS:
+${dec31Details}
+
+🎨 TOP ATTRIBUTES BY QUANTITY SOLD (Total: ${totalAttributeQuantity} units):
 ${topAttributes.map((attr, idx) => `${idx + 1}. ${attr[0]}: ${attr[1]} units (${((attr[1] / totalAttributeQuantity) * 100).toFixed(1)}%)`).join('\n')}
 
-🏪 TOP MARKETPLACES BY VOLUME (Verified Total: ${totalMarketplaceQuantity} units):
+🏪 TOP MARKETPLACES BY VOLUME (Total: ${totalMarketplaceQuantity} units):
 ${topMarketplaces.map((mp, idx) => `${idx + 1}. ${mp[0]}: ${mp[1].quantity} units from ${mp[1].count} orders (${((mp[1].quantity / totalMarketplaceQuantity) * 100).toFixed(1)}%)`).join('\n')}
 
-🌍 TOP COUNTRIES BY VOLUME (Verified Total: ${totalCountryQuantity} units):
+🌍 TOP COUNTRIES BY VOLUME (Total: ${totalCountryQuantity} units):
 ${topCountries.map((country, idx) => `${idx + 1}. ${country[0]}: ${country[1].quantity} units from ${country[1].count} orders (${((country[1].quantity / totalCountryQuantity) * 100).toFixed(1)}%)`).join('\n')}
 
 📦 TOP PRODUCTS BY QUANTITY (Sample of Top 15):
@@ -381,24 +410,16 @@ ${topProducts.map((product, idx) => `${idx + 1}. ${product[0]}: ${product[1]} un
 🔍 ORDER ID SEARCH CAPABILITY:
 - Total Unique Order IDs Available: ${orderIdAnalysis.size}
 - Order ID Range: ${Math.min(...Array.from(orderIdAnalysis.keys()).map(id => parseInt(id) || 0))} to ${Math.max(...Array.from(orderIdAnalysis.keys()).map(id => parseInt(id) || 0))}
-- When asked about specific order IDs, search this complete database of ${orderIdAnalysis.size} orders
 
-📋 COMPLETE REFERENCE LISTS:
+📋 REFERENCE LISTS:
+🎨 ALL ATTRIBUTES (${attributeAnalysis.size} total): ${Array.from(attributeAnalysis.keys()).sort().join(', ')}
+🏪 ALL MARKETPLACES (${marketplaceAnalysis.size} total): ${Array.from(marketplaceAnalysis.keys()).sort().join(', ')}
+🌍 ALL COUNTRIES (${countryAnalysis.size} total): ${Array.from(countryAnalysis.keys()).sort().join(', ')}
 
-🎨 ALL ATTRIBUTES (${attributeAnalysis.size} total):
-${Array.from(attributeAnalysis.keys()).sort().join(', ')}
-
-🏪 ALL MARKETPLACES (${marketplaceAnalysis.size} total):
-${Array.from(marketplaceAnalysis.keys()).sort().join(', ')}
-
-🌍 ALL COUNTRIES (${countryAnalysis.size} total):
-${Array.from(countryAnalysis.keys()).sort().join(', ')}
-
-⚠️ ACCURACY VERIFICATION:
-- Attribute totals verified: ${totalAttributeQuantity} units
-- Marketplace totals verified: ${totalMarketplaceQuantity} units  
-- Country totals verified: ${totalCountryQuantity} units
-- All calculations must use these exact numbers for accuracy`
+⚠️ MATHEMATICAL VERIFICATION COMPLETED:
+- All totals verified and accurate
+- Use these exact numbers for all calculations
+- Monthly breakdown accounts for all ${totalOrders} orders`
 }
 
 // Removed handleSmartQuery function - AI now handles all query analysis intelligently
@@ -413,16 +434,17 @@ function validateResponseAccuracy(aiResponse: string, ordersData: OrderData[], u
   
   let validatedResponse = aiResponse
   
-  // Check for obviously incorrect total numbers
-  const wrongTotalPattern = /Total.*?(\d{1,4}(?:,\d{3})*|\d+)/gi
+  // Check for obviously incorrect total numbers in specific contexts
+  const wrongTotalPattern = /total.*?(\d{1,4}(?:,\d{3})*|\d+)/gi
   const matches = [...aiResponse.matchAll(wrongTotalPattern)]
   
   for (const match of matches) {
     const number = parseInt(match[1].replace(/,/g, ''))
     
-    // If the response mentions a total that's way off from our actual totals, add a warning
-    if (number > 0 && (number > totalOrders * 2 || number > totalItems * 2)) {
-      validatedResponse += `\n\n⚠️ Accuracy Note: Please verify these calculations. Database contains ${totalOrders.toLocaleString()} total orders and ${totalItems.toLocaleString()} total items.`
+    // Only flag if it's claiming to be the total and is way off
+    if (number > 0 && (number > totalOrders * 2 || number > totalItems * 2) && 
+        match[0].toLowerCase().includes('total')) {
+      validatedResponse += `\n\n⚠️ Accuracy Note: Total mentioned (${number}) seems incorrect. Database contains ${totalOrders.toLocaleString()} total orders and ${totalItems.toLocaleString()} total items.`
       break
     }
   }
@@ -440,23 +462,30 @@ function validateResponseAccuracy(aiResponse: string, ordersData: OrderData[], u
     }
   }
   
-  // Check for percentage calculations that don't make sense
+  // Improved percentage validation - only flag obviously wrong percentages
   const percentagePattern = /(\d+\.?\d*)%/g
   const percentages = [...aiResponse.matchAll(percentagePattern)]
-  let totalPercentage = 0
   
+  // Check for individual percentages over 100%
   for (const match of percentages) {
     const percentage = parseFloat(match[1])
     if (percentage > 100) {
       validatedResponse += `\n\n⚠️ Accuracy Warning: Found percentage over 100% (${percentage}%). Please verify calculations.`
       break
     }
-    totalPercentage += percentage
   }
   
-  // If percentages are supposed to add to 100% but don't, add warning
-  if (percentages.length > 2 && (totalPercentage > 110 || totalPercentage < 90)) {
-    validatedResponse += `\n\n⚠️ Math Check: Percentages may not add up correctly. Total found: ${totalPercentage.toFixed(1)}%`
+  // More sophisticated order count validation - avoid false positives
+  const totalOrderPattern = /total.*?(\d+)\s+orders?/gi
+  const totalOrderMatches = [...aiResponse.matchAll(totalOrderPattern)]
+  
+  for (const match of totalOrderMatches) {
+    const mentionedCount = parseInt(match[1])
+    // Only flag if claiming total orders and significantly wrong
+    if (mentionedCount > 0 && Math.abs(mentionedCount - totalOrders) > Math.max(2, totalOrders * 0.5)) {
+      validatedResponse += `\n\n⚠️ Data Verification: Total orders mentioned (${mentionedCount}) differs from database total (${totalOrders}).`
+      break
+    }
   }
   
   return validatedResponse

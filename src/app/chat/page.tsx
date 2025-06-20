@@ -214,15 +214,20 @@ export default function ChatPage() {
     try {
       const chat = await chatStorage.getChat(chatId)
       if (chat) {
+        // COMPLETE reset for fresh memory - clear all data first
+        setOrders([])
+        setDataLoaded(false)
+        setDataLoadingMode(null)
+        setDynamicSuggestions([])
+        
+        // Then load the chat
         setMessages(chat.messages)
         setCurrentChatId(chat.id)
         setCurrentChatTitle(chat.title)
         localStorage.setItem('lastActiveChatId', chat.id)
         
-        // Reset data loading state when loading an existing chat
-        setDataLoaded(false)
-        setDataLoadingMode(null)
-        setOrders([])
+        // Force user to reload data for this chat session
+        console.log('Chat loaded - data cleared for fresh analysis')
       }
     } catch (error) {
       console.error('Error loading chat:', error)
@@ -230,16 +235,18 @@ export default function ChatPage() {
   }
 
   const startNewChat = () => {
-    console.log('Starting new chat...', { dataLoaded, ordersLength: orders.length, welcomeShown })
+    console.log('Starting new chat with complete reset...')
+    
+    // COMPLETE reset for fresh memory
+    setOrders([])
+    setDataLoaded(false)
+    setDataLoadingMode(null)
+    setDynamicSuggestions([])
+    setWelcomeShown(false)
     
     const newChatId = chatStorage.generateChatId()
     setCurrentChatId(newChatId)
     setCurrentChatTitle(null)
-    setWelcomeShown(false)
-    setDataLoaded(false)
-    setDataLoadingMode(null)
-    setDynamicSuggestions([])
-    setOrders([])
     localStorage.setItem('lastActiveChatId', newChatId)
 
     // Show data selection message
@@ -249,9 +256,9 @@ export default function ChatPage() {
       timestamp: new Date()
     }
     
-    console.log('Setting welcome message:', welcomeMessage)
     setMessages([welcomeMessage])
     setWelcomeShown(true)
+    console.log('New chat started with fresh memory')
   }
 
   const handleSuggestionClick = async (suggestion: string) => {

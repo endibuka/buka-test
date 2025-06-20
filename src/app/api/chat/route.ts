@@ -1,6 +1,28 @@
 import { NextResponse } from 'next/server'
 
 interface OrderData {
+  id?: number
+  order_id?: string
+  item_quantity?: number
+  variation_number?: string
+  order_date?: string
+  variation_name?: string
+  attribute?: string
+  marketplace?: string
+  delivery_country?: string
+  created_at?: string
+  // CSV format fields
+  OrderID?: string
+  'Item Quantity'?: string
+  'Variation Number'?: string
+  'Order Date'?: string
+  'Variation Name'?: string
+  Attribute?: string
+  Marketplace?: string
+  'Delivery Country'?: string
+}
+
+interface NormalizedOrderData {
   id: number
   order_id: string
   item_quantity: number
@@ -11,6 +33,22 @@ interface OrderData {
   marketplace: string
   delivery_country: string
   created_at: string
+}
+
+// Transform CSV format data to normalized format
+function normalizeOrderData(orders: OrderData[]): NormalizedOrderData[] {
+  return orders.map(order => ({
+    id: order.id || 0,
+    order_id: order.order_id || order.OrderID || '',
+    item_quantity: order.item_quantity || parseInt(order['Item Quantity'] || '0') || 0,
+    variation_number: order.variation_number || order['Variation Number'] || '',
+    order_date: order.order_date || order['Order Date'] || '',
+    variation_name: order.variation_name || order['Variation Name'] || '',
+    attribute: order.attribute || order.Attribute || '',
+    marketplace: order.marketplace || order.Marketplace || '',
+    delivery_country: order.delivery_country || order['Delivery Country'] || '',
+    created_at: order.created_at || ''
+  }))
 }
 
 export async function POST(request: Request) {
@@ -24,6 +62,9 @@ export async function POST(request: Request) {
       )
     }
 
+    // Normalize the data format (handles both CSV and database formats)
+    const normalizedOrders = normalizeOrderData(ordersData || [])
+
     const DEEPSEEK_API_KEY = process.env.DEEPSEEK_API_KEY
 
     if (!DEEPSEEK_API_KEY) {
@@ -34,14 +75,14 @@ export async function POST(request: Request) {
     }
 
     // Use AI for intelligent query analysis - no more hardcoded patterns
-    const analytics = generateComprehensiveAnalytics(ordersData)
+    const analytics = generateComprehensiveAnalytics(normalizedOrders)
     
     // HYBRID CALCULATIONS - Precise JavaScript functions
-    const preciseMonthlyBreakdown = calculateMonthlyBreakdown(ordersData)
-    const preciseDec31Analysis = calculateSpecificDate(ordersData, '2024-12-31')
+    const preciseMonthlyBreakdown = calculateMonthlyBreakdown(normalizedOrders)
+    const preciseDec31Analysis = calculateSpecificDate(normalizedOrders, '2024-12-31')
     
     // Additional precise calculations for complex math
-    const itemQuantities = ordersData.map((order: OrderData) => order.item_quantity || 0)
+    const itemQuantities = normalizedOrders.map((order: NormalizedOrderData) => order.item_quantity)
     const preciseStats = calculateStandardDeviation(itemQuantities)
     
     // Example compound growth calculation (15%, -8%, 22%)
@@ -72,11 +113,11 @@ AVAILABLE PRECISE FUNCTIONS:
 
     // Log current data for debugging
     console.log('CHAT API - Current Session Data:', {
-      totalOrders: ordersData.length,
-      firstOrderDate: ordersData[0]?.order_date,
-      lastOrderDate: ordersData[ordersData.length - 1]?.order_date,
-      sampleOrderIds: ordersData.slice(0, 5).map((order: OrderData) => order.order_id),
-      uniqueOrderIds: new Set(ordersData.map((order: OrderData) => order.order_id)).size
+      totalOrders: normalizedOrders.length,
+      firstOrderDate: normalizedOrders[0]?.order_date,
+      lastOrderDate: normalizedOrders[normalizedOrders.length - 1]?.order_date,
+      sampleOrderIds: normalizedOrders.slice(0, 5).map((order: NormalizedOrderData) => order.order_id),
+      uniqueOrderIds: new Set(normalizedOrders.map((order: NormalizedOrderData) => order.order_id)).size
     })
     
     // Log analytics hash for consistency verification
@@ -100,160 +141,61 @@ Current Question: ${message}
 ⚠️ CRITICAL: Base your analysis ONLY on the current dataset provided below. Do NOT reference any data from previous conversations.
 ` : `User Question: ${message}`
 
-    const systemPrompt = `You are an EXPERT data analyst for an e-commerce business. You have complete access to ${ordersData.length} orders and must provide 100% ACCURATE analysis based on the exact data provided.
+    const systemPrompt = `You are a professional data analyst for an e-commerce business. You have access to order data and must provide accurate, fact-based responses.
 
-🤖 HYBRID CALCULATION SYSTEM:
-- You have access to PRECISE JavaScript calculations for critical operations
-- Use PRECISE CALCULATIONS for: monthly breakdowns, date-specific queries, mathematical operations
-- Use ANALYTICS SECTIONS for: general insights, cross-dimensional analysis, top performers
-- When in doubt about math accuracy, ALWAYS use the precise calculations
+🚨 MANDATORY RULE: For ANY monthly breakdown questions, you MUST copy the exact numbers from the "PRECISE MONTHLY BREAKDOWN" section below. DO NOT calculate anything yourself. DO NOT use analytics data for monthly breakdowns.
 
-🔢 PRECISE CALCULATION RESULTS (100% Accurate):
-${preciseCalculations}
+🚨 MANDATORY RULE: For ANY specific date questions, you MUST copy the exact results from the "PRECISE DATE ANALYSIS" section below.
 
-🚨 FRESH DATA SESSION - NO MEMORY CONTAMINATION:
-- This is a FRESH analysis session with ${ordersData.length} orders
-- IGNORE any references to different datasets from conversation history
-- ONLY analyze the current dataset provided in the analytics section below
-- Do NOT reference any data quantities or patterns from previous conversations
-- Each chat session should be treated as completely independent
+PRECISE MONTHLY BREAKDOWN (USE THESE EXACT NUMBERS):
+${calculateMonthlyBreakdown(normalizedOrders)}
 
-🚨 DETERMINISTIC RESPONSE REQUIREMENT:
-- You MUST give IDENTICAL responses for IDENTICAL questions
-- Use EXACT numbers from the analytics sections below
-- Do NOT vary your interpretation of the same data
-- Always use the same calculation method for the same type of question
-- Be 100% consistent in your data reading and reporting
+PRECISE DATE ANALYSIS (USE THESE EXACT RESULTS):
+December 31, 2024: ${calculateSpecificDate(normalizedOrders, '2024-12-31')}
 
-🚨 CRITICAL ACCURACY REQUIREMENTS:
-- ONLY use data from the analytics section below
-- NEVER make assumptions or inferences about data not explicitly shown
-- ALWAYS cite which specific analytics section you're using
-- VERIFY all calculations are mathematically correct
-- If you don't have specific information, clearly state what data is missing
-- All percentages refer to their specific category (attributes, marketplaces, countries)
-- Never make up information or provide contradictory statements
-- Always be consistent with the data provided
+PRECISE MARKETPLACE BREAKDOWN:
+${calculateMarketplaceBreakdown(normalizedOrders)}
 
-🔍 MANDATORY RESPONSE FORMAT:
-- Start with: "Based on [SECTION NAME] section..."
-- Show your calculation steps
-- State your confidence level
-- If inferring, explicitly say "This is an inference based on..."
+PRECISE COUNTRY BREAKDOWN:
+${calculateCountryBreakdown(normalizedOrders)}
 
-🔍 MANDATORY DATA SOURCES - USE THESE EXACT SECTIONS:
-1. For monthly marketplace questions → Use "📅 MARKETPLACE BY MONTH BREAKDOWN" section
-2. For marketplace-country questions → Use "🏪🌍 MARKETPLACE → COUNTRY COMBINATIONS" section  
-3. For monthly totals → Use "📅 COMPLETE MONTHLY BREAKDOWN" section
-4. For overall marketplace stats → Use "🏪 TOP MARKETPLACES BY VOLUME" section
-5. For overall country stats → Use "🌍 TOP COUNTRIES BY VOLUME" section
+PRECISE PRODUCT BREAKDOWN (TOP 20):
+${calculateProductBreakdown(normalizedOrders)}
 
-🔍 MONTHLY BREAKDOWN CONSISTENCY RULES:
-- When asked about monthly breakdown, ALWAYS use "📅 COMPLETE MONTHLY BREAKDOWN" section
-- Read the numbers EXACTLY as written in that section
-- Do NOT interpret or calculate differently between requests
-- The format is: "Month Year: X orders (Y items)"
-- Report the EXACT numbers from that section, no variations
+PRECISE ATTRIBUTE BREAKDOWN (TOP 20):
+${calculateAttributeBreakdown(normalizedOrders)}
 
-🧮 MATHEMATICAL CALCULATION REQUIREMENTS:
-- When given hypothetical numbers in word problems, PERFORM THE CALCULATION as requested
-- Do NOT deflect by saying "data doesn't match" - treat hypothetical scenarios as valid
-- Show ALL calculation steps clearly: Step 1, Step 2, Step 3, Final Answer
-- Use proper mathematical notation and be precise with decimals
-- If asked "what if" or hypothetical questions, calculate based on the given numbers
-- Mathematical word problems should be solved regardless of whether they match your data
-- Always show: Given → Calculation Steps → Final Answer
+PRECISE DATA SUMMARY:
+${calculateDataSummary(normalizedOrders)}
 
-EXAMPLE of correct mathematical response:
-Question: "If marketplace X had 1,000 orders at 2.5 items each, representing 20% of total, what's the total items?"
-Correct Answer:
-"Given: 1,000 orders × 2.5 items = 2,500 items (20% of total)
-Step 1: Calculate items for marketplace X = 1,000 × 2.5 = 2,500 items
-Step 2: If 2,500 = 20%, then total = 2,500 ÷ 0.20 = 12,500 items
-Final Answer: 12,500 total items across all marketplaces"
+EXAMPLE CORRECT RESPONSES:
+- Monthly question: "Based on PRECISE MONTHLY BREAKDOWN: January 2024: [exact number from above], February 2024: [exact number from above]..."
+- Date question: "Based on PRECISE DATE ANALYSIS: [exact result from above]"
+- Marketplace question: "Based on PRECISE MARKETPLACE BREAKDOWN: [exact result from above]"
+- Country question: "Based on PRECISE COUNTRY BREAKDOWN: [exact result from above]"
+- Product question: "Based on PRECISE PRODUCT BREAKDOWN: [exact result from above]"
+- Attribute question: "Based on PRECISE ATTRIBUTE BREAKDOWN: [exact result from above]"
+- Summary question: "Based on PRECISE DATA SUMMARY: [exact result from above]"
 
-❌ DO NOT ASSUME OR INFER:
-- Which marketplaces were active in specific months (check MARKETPLACE BY MONTH section)
-- Which countries each marketplace serves (check MARKETPLACE → COUNTRY section)
-- Monthly distributions based on overall totals (use exact monthly data)
-- Product distributions by marketplace-month combinations (not available in analytics)
-- Which specific products were sold through which marketplaces in which months
-- Any cross-dimensional data that isn't explicitly shown in the analytics sections
+❌ FORBIDDEN: Do NOT use any numbers from the Analytics Data section below for monthly, marketplace, country, product, attribute, or summary calculations.
+❌ FORBIDDEN: Do NOT perform your own calculations for any data that has precise function results available.
+❌ FORBIDDEN: Do NOT modify or interpret the precise calculation results.
 
-🚫 CRITICAL: If asked about product-marketplace-month combinations, state clearly that this data is not available in the provided analytics sections. Do not attempt to infer or assume these relationships.
-
-🚫 STATISTICAL ANALYSIS RESTRICTIONS:
-- Do not attempt trend analysis with fewer than 10 data points
-- Do not make predictions or forecasts based on limited data (3-5 months)
-- Do not calculate probabilities without proper statistical foundation
-- Do not treat made-up metrics (like "diversification coefficient") as real statistical measures
-- If asked for complex statistical analysis beyond the data scope, clearly state this cannot be done
-
-✅ REQUIRED RESPONSE STRUCTURE:
-1. **Data Source**: "According to [SECTION NAME] section..."
-2. **Exact Data**: Quote the specific numbers from that section
-3. **Calculation**: Show your math step-by-step if needed
-4. **Conclusion**: State your answer with confidence level
-
-FORMATTING RULES:
-- Do NOT use ** or any markdown formatting
-- Use plain text only
-- Use simple line breaks and dashes for lists
-- Be direct and conversational
-- Always provide specific, accurate numbers
-- Always cite your data source section
-
-DATASET FIELDS AVAILABLE:
-- order_id: unique order identifier  
-- item_quantity: number of items per order
-- variation_number: product variation code
-- order_date: when order was placed (stored as string, format varies)
-- variation_name: full product name
-- attribute: product attribute/color/variation
-- marketplace: sales channel (Amazon FBA, eBay, etc.)
-- delivery_country: shipping destination
-
-COMPLETE DATA ANALYTICS PROVIDED:
+Analytics Data (ONLY for non-monthly, non-date questions):
 ${analytics}
 
-ANALYSIS CAPABILITIES:
-1. Order counts and breakdowns by any dimension
-2. Marketplace comparisons (use marketplace analytics section)
-3. Country analysis (use country analytics section)
-4. Attribute/color analysis (use attribute analytics section)
-5. Time-based analysis (use monthly breakdown and specific date sections)
-6. Cross-dimensional comparisons (use cross-dimensional sections)
-7. Percentage calculations within each category
-8. Average calculations by any dimension
-9. Top performer rankings
+Response Requirements:
+1. ALWAYS cite your data source: "Based on [PRECISE MONTHLY BREAKDOWN/PRECISE DATE ANALYSIS/ANALYTICS DATA] section..."
+2. Structure: Data Source → Exact Data → Calculation (if any) → Conclusion
+3. Include confidence level: High (precise functions), Medium (analytics), or Low (limited data)
+4. Never make assumptions or inferences beyond the available data
+5. For calculations, show your work: "Calculation: X + Y = Z"
+6. If data is insufficient, clearly state limitations
 
-CONVERSATION CONTEXT:
-${historyContext}
-
-🎯 ACCURACY PROTOCOL:
-1. READ the analytics data carefully
-2. IDENTIFY the exact section that contains the needed data
-3. CITE the section name in your response
-4. Use ONLY the numbers provided in the analytics
-5. If asked about marketplace performance by month, check "MARKETPLACE BY MONTH BREAKDOWN"
-6. If asked about marketplace-country combinations, check "MARKETPLACE → COUNTRY COMBINATIONS"
-7. If information is not available in the analytics, clearly state this
-8. Be consistent - don't contradict previous statements
-9. Show your calculation steps
-10. State your confidence level (High/Medium/Low)
-
-RESPONSE REQUIREMENTS:
-- Base ALL answers on the provided analytics data sections
-- Always start with "Based on [SECTION NAME] section..."
-- Show specific numbers with confidence
-- Use the exact numbers from the analytics sections
-- Quote the relevant section name when using specific data
-- If asked about combinations, check the appropriate cross-dimensional section
-- Never guess or estimate - use actual data
-- Show your mathematical reasoning step-by-step
-- End with confidence level assessment
-
-Answer the user's question with 100% accuracy using only the provided data analytics sections, always citing your sources.`
+Validation Rules:
+- No statistical analysis with <10 data points
+- Acknowledge any data gaps or limitations
+- Use precise calculation functions for mathematical accuracy`;
 
     // Build conversation messages with history
     const messages = [
@@ -315,7 +257,7 @@ Answer the user's question with 100% accuracy using only the provided data analy
     const aiResponse = data.choices[0].message.content
     
     // Validate critical data accuracy in the response
-    const validatedResponse = validateResponseAccuracy(aiResponse, ordersData, message)
+          const validatedResponse = validateResponseAccuracy(aiResponse, normalizedOrders, message)
     
     // Enhance response quality
     const enhancedResponse = enhanceResponseQuality(validatedResponse, message)
@@ -351,7 +293,7 @@ Answer the user's question with 100% accuracy using only the provided data analy
   }
 }
 
-function generateComprehensiveAnalytics(orders: OrderData[]): string {
+function generateComprehensiveAnalytics(orders: NormalizedOrderData[]): string {
   if (!orders || orders.length === 0) {
     return "No orders data available."
   }
@@ -716,7 +658,7 @@ ${topProducts.map((product, idx) => `${idx + 1}. ${product[0]}: ${product[1]} un
 
 // Helper functions removed since they're no longer used with AI-driven analysis
 
-function validateResponseAccuracy(aiResponse: string, ordersData: OrderData[], userMessage: string): string {
+function validateResponseAccuracy(aiResponse: string, ordersData: NormalizedOrderData[], userMessage: string): string {
   // Basic validation checks for common accuracy issues
   const totalOrders = ordersData.length
   const totalItems = ordersData.reduce((sum, order) => sum + (order.item_quantity || 0), 0)
@@ -898,13 +840,15 @@ Generate exactly 6 follow-up questions, one per line, without numbering or bulle
 }
 
 // HYBRID CALCULATION FUNCTIONS - AI can call these for precise math
-function calculateMonthlyBreakdown(orders: OrderData[]): string {
-  const monthlyData = new Map<string, {count: number, items: number, uniqueIds: Set<string>}>()
+function calculateMonthlyBreakdown(orders: NormalizedOrderData[]): string {
+  const monthlyData = new Map<string, {uniqueIds: Set<string>, items: number}>()
   
   orders.forEach(order => {
+    // Match SQL WHERE conditions exactly: order_date IS NOT NULL AND order_date != ''
     if (order.order_date && order.order_date.trim() !== '') {
       let date: Date | null = null
       
+      // Parse date exactly like SQL order_date::date
       if (order.order_date.includes('T')) {
         date = new Date(order.order_date)
       } else if (order.order_date.match(/^\d{4}-\d{2}-\d{2}/)) {
@@ -913,18 +857,23 @@ function calculateMonthlyBreakdown(orders: OrderData[]): string {
         date = new Date(order.order_date)
       }
       
+      // Only process valid dates (matching SQL behavior)
       if (date && !isNaN(date.getTime())) {
         const monthKey = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}`
         
         if (!monthlyData.has(monthKey)) {
-          monthlyData.set(monthKey, {count: 0, items: 0, uniqueIds: new Set()})
+          monthlyData.set(monthKey, {uniqueIds: new Set(), items: 0})
         }
         
         const monthly = monthlyData.get(monthKey)!
-        if (order.order_id) {
-          monthly.uniqueIds.add(order.order_id)
+        
+        // Match SQL: COUNT(DISTINCT order_id) - only count unique order_ids
+        if (order.order_id && order.order_id.trim() !== '') {
+          monthly.uniqueIds.add(order.order_id.trim())
         }
-        monthly.items += (order.item_quantity || 0)
+        
+        // Match SQL: SUM(item_quantity)
+        monthly.items += order.item_quantity
       }
     }
   })
@@ -939,26 +888,47 @@ function calculateMonthlyBreakdown(orders: OrderData[]): string {
     .join('\n')
 }
 
-function calculateSpecificDate(orders: OrderData[], targetDate: string): string {
+function calculateSpecificDate(orders: NormalizedOrderData[], targetDate: string): string {
+  const results: {orderId: string, country: string, marketplace: string}[] = []
   const countries = new Set<string>()
-  let orderCount = 0
   
   orders.forEach(order => {
     if (order.order_date && order.order_date.trim() !== '') {
-      const date = new Date(order.order_date)
-      if (!isNaN(date.getTime())) {
-        const dateStr = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`
+      let date: Date | null = null
+      
+      // Parse date exactly like SQL
+      if (order.order_date.includes('T')) {
+        date = new Date(order.order_date)
+      } else if (order.order_date.match(/^\d{4}-\d{2}-\d{2}/)) {
+        date = new Date(order.order_date)
+      } else {
+        date = new Date(order.order_date)
+      }
+      
+      if (date && !isNaN(date.getTime())) {
+        // Format date as YYYY-MM-DD to match target
+        const dateStr = date.toISOString().split('T')[0]
+        
         if (dateStr === targetDate) {
-          orderCount++
           if (order.delivery_country) {
-            countries.add(order.delivery_country.trim())
+            countries.add(order.delivery_country)
+            results.push({
+              orderId: order.order_id || 'N/A',
+              country: order.delivery_country,
+              marketplace: order.marketplace || 'N/A'
+            })
           }
         }
       }
     }
   })
   
-  return `${targetDate}: ${orderCount} orders to countries: ${Array.from(countries).sort().join(', ')}`
+  if (results.length === 0) {
+    return `No orders found for ${targetDate}`
+  }
+  
+  const countryList = Array.from(countries).sort().join(', ')
+  return `Orders on ${targetDate}:\n- Countries: ${countryList}\n- Total orders: ${results.length}\n- Order details: ${results.slice(0, 5).map(r => `${r.orderId} (${r.country})`).join(', ')}${results.length > 5 ? '...' : ''}`
 }
 
 function calculatePercentages(values: number[]): string {
@@ -979,4 +949,99 @@ function calculateStandardDeviation(values: number[]): {mean: number, stdDev: nu
   const mean = values.reduce((sum, val) => sum + val, 0) / values.length
   const variance = values.reduce((sum, val) => sum + Math.pow(val - mean, 2), 0) / values.length
   return {mean: Math.round(mean * 100) / 100, stdDev: Math.round(Math.sqrt(variance) * 100) / 100}
+}
+
+function calculateMarketplaceBreakdown(orders: NormalizedOrderData[]): string {
+  const marketplaceData = new Map<string, {count: number, items: number}>()
+  
+  orders.forEach(order => {
+    if (order.marketplace) {
+      const mp = order.marketplace.trim()
+      const current = marketplaceData.get(mp) || {count: 0, items: 0}
+      marketplaceData.set(mp, {
+        count: current.count + 1,
+        items: current.items + order.item_quantity
+      })
+    }
+  })
+  
+  return Array.from(marketplaceData.entries())
+    .sort((a, b) => b[1].items - a[1].items)
+    .map(([marketplace, data]) => `${marketplace}: ${data.count} orders (${data.items} items)`)
+    .join('\n')
+}
+
+function calculateCountryBreakdown(orders: NormalizedOrderData[]): string {
+  const countryData = new Map<string, {count: number, items: number}>()
+  
+  orders.forEach(order => {
+    if (order.delivery_country) {
+      const country = order.delivery_country.trim()
+      const current = countryData.get(country) || {count: 0, items: 0}
+      countryData.set(country, {
+        count: current.count + 1,
+        items: current.items + order.item_quantity
+      })
+    }
+  })
+  
+  return Array.from(countryData.entries())
+    .sort((a, b) => b[1].items - a[1].items)
+    .map(([country, data]) => `${country}: ${data.count} orders (${data.items} items)`)
+    .join('\n')
+}
+
+function calculateProductBreakdown(orders: NormalizedOrderData[]): string {
+  const productData = new Map<string, number>()
+  
+  orders.forEach(order => {
+    if (order.variation_name) {
+      const product = order.variation_name.trim()
+      productData.set(product, (productData.get(product) || 0) + order.item_quantity)
+    }
+  })
+  
+  return Array.from(productData.entries())
+    .sort((a, b) => b[1] - a[1])
+    .slice(0, 20)
+    .map(([product, quantity]) => `${product}: ${quantity} items`)
+    .join('\n')
+}
+
+function calculateAttributeBreakdown(orders: NormalizedOrderData[]): string {
+  const attributeData = new Map<string, number>()
+  
+  orders.forEach(order => {
+    if (order.attribute) {
+      const attr = order.attribute.trim()
+      attributeData.set(attr, (attributeData.get(attr) || 0) + order.item_quantity)
+    }
+  })
+  
+  return Array.from(attributeData.entries())
+    .sort((a, b) => b[1] - a[1])
+    .slice(0, 20)
+    .map(([attribute, quantity]) => `${attribute}: ${quantity} items`)
+    .join('\n')
+}
+
+function calculateDataSummary(orders: NormalizedOrderData[]): string {
+  const totalOrders = orders.length
+  const uniqueOrderIds = new Set(orders.map(o => o.order_id)).size
+  const totalItems = orders.reduce((sum, order) => sum + order.item_quantity, 0)
+  const uniqueProducts = new Set(orders.map(o => o.variation_name)).size
+  const uniqueCountries = new Set(orders.map(o => o.delivery_country)).size
+  const uniqueMarketplaces = new Set(orders.map(o => o.marketplace)).size
+  
+  const dates = orders
+    .map(o => o.order_date)
+    .filter(d => d && d.trim() !== '')
+    .map(d => new Date(d!))
+    .filter(d => !isNaN(d.getTime()))
+    .sort((a, b) => a.getTime() - b.getTime())
+  
+  const firstDate = dates[0]?.toISOString().split('T')[0] || 'N/A'
+  const lastDate = dates[dates.length - 1]?.toISOString().split('T')[0] || 'N/A'
+  
+  return `Total Records: ${totalOrders}\nUnique Order IDs: ${uniqueOrderIds}\nTotal Items: ${totalItems}\nUnique Products: ${uniqueProducts}\nUnique Countries: ${uniqueCountries}\nUnique Marketplaces: ${uniqueMarketplaces}\nDate Range: ${firstDate} to ${lastDate}`
 } 

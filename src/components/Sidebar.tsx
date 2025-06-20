@@ -8,7 +8,8 @@ import {
   ChevronLeftIcon,
   ChevronRightIcon,
   MoonIcon,
-  SunIcon
+  SunIcon,
+  CalculatorIcon
 } from '@heroicons/react/24/outline'
 import { useTheme } from '@/contexts/ThemeContext'
 
@@ -63,6 +64,23 @@ export default function Sidebar({ collapsed = false, onToggleCollapse }: Sidebar
                 </Link>
               )
             })}
+            <Link
+              href="/functions"
+              className={`${
+                pathname === '/functions'
+                  ? 'bg-blue-50 dark:bg-blue-900/20 text-blue-700 dark:text-blue-400 border-r-2 border-blue-700 dark:border-blue-400'
+                  : 'text-gray-600 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700 hover:text-gray-900 dark:hover:text-white'
+              } group flex items-center px-2 py-2 text-sm font-medium rounded-l-md ${collapsed ? 'justify-center' : ''}`}
+              title={collapsed ? 'Functions' : undefined}
+            >
+              <CalculatorIcon
+                className={`${
+                  pathname === '/functions' ? 'text-blue-500 dark:text-blue-400' : 'text-gray-400 dark:text-gray-500 group-hover:text-gray-500 dark:group-hover:text-gray-400'
+                } h-5 w-5 flex-shrink-0 ${collapsed ? '' : 'mr-3'}`}
+                aria-hidden="true"
+              />
+              {!collapsed && 'Functions'}
+            </Link>
           </nav>
         </div>
         {!collapsed && (

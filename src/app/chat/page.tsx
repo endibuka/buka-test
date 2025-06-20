@@ -46,7 +46,7 @@ export default function ChatPage() {
 
   // Load orders data and setup chat context on component mount
   useEffect(() => {
-    // Don't auto-load data, let user choose
+    // Auto-load data immediately
     loadLastActiveChat()
     
     // Set up chat functions for header controls
@@ -181,10 +181,51 @@ export default function ChatPage() {
     if (lastChatId) {
       loadChat(lastChatId)
     } else {
-      // If no existing chat, show data selection options
+      // If no existing chat, auto-load CSV data immediately
+      autoLoadCSVData()
+    }
+  }
+
+  const autoLoadCSVData = async () => {
+    try {
+      console.log('Auto-loading CSV data...')
+      
+      // Show loading message
       setMessages([{
         role: 'assistant',
-        content: 'Hello! Welcome to the chat tool. Please choose how you want to load your orders data:',
+        content: '🔄 Loading your orders data automatically... Please wait.',
+        timestamp: new Date()
+      }])
+      
+      // Fetch CSV data from the API
+      const response = await fetch('/api/fetch-orders')
+      if (!response.ok) {
+        throw new Error('Failed to fetch CSV data')
+      }
+      
+      const data = await response.json()
+      const csvOrders = data.orders || []
+      
+      console.log(`Auto-loaded ${csvOrders.length} orders from CSV`)
+      
+      setOrders(csvOrders)
+      setDataLoaded(true)
+      
+      // Show success message with data count
+      const successMessage = {
+        role: 'assistant' as const,
+        content: `✅ Data loaded successfully! I've loaded ${csvOrders.length} orders from your CSV file and pre-calculated all analysis functions. You can now ask me any questions about your orders data!`,
+        timestamp: new Date()
+      }
+      
+      setMessages([successMessage])
+      setWelcomeShown(true)
+      
+    } catch (error) {
+      console.error('Error auto-loading CSV data:', error)
+      setMessages([{
+        role: 'assistant',
+        content: '❌ Error loading data automatically. Please try refreshing the page.',
         timestamp: new Date()
       }])
       setWelcomeShown(true)
@@ -235,7 +276,7 @@ export default function ChatPage() {
   }
 
   const startNewChat = () => {
-    console.log('Starting new chat with complete reset...')
+    console.log('Starting new chat with auto-loading...')
     
     // COMPLETE reset for fresh memory
     setOrders([])
@@ -249,16 +290,9 @@ export default function ChatPage() {
     setCurrentChatTitle(null)
     localStorage.setItem('lastActiveChatId', newChatId)
 
-    // Show data selection message
-    const welcomeMessage = {
-      role: 'assistant' as const,
-      content: `Hello! Welcome to the chat tool. Please choose how you want to load your orders data:`,
-      timestamp: new Date()
-    }
-    
-    setMessages([welcomeMessage])
-    setWelcomeShown(true)
-    console.log('New chat started with fresh memory')
+    // Auto-load CSV data immediately
+    autoLoadCSVData()
+    console.log('New chat started with auto-loading')
   }
 
   const handleSuggestionClick = async (suggestion: string) => {
@@ -379,32 +413,7 @@ export default function ChatPage() {
               </div>
             ))}
             
-            {/* Show data selection options when data is not loaded */}
-            {!dataLoaded && dataLoadingMode === null && (
-              <div className="flex justify-start">
-                <div className="max-w-2xl">
-                  <div className="mt-4 space-y-3">
-                    <p className="text-sm text-gray-600 dark:text-gray-400 mb-3">Choose your data loading option:</p>
-                    <button
-                      onClick={() => loadOrdersData('all')}
-                      disabled={isLoading}
-                      className="w-full text-left px-4 py-3 text-sm bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-700 rounded-lg hover:bg-green-100 dark:hover:bg-green-900/30 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-                    >
-                      <div className="font-medium text-green-700 dark:text-green-300">Load All Database Data</div>
-                      <div className="text-xs text-green-600 dark:text-green-400 mt-1">Load all orders including duplicates</div>
-                    </button>
-                    <button
-                      onClick={() => loadOrdersData('unique')}
-                      disabled={isLoading}
-                      className="w-full text-left px-4 py-3 text-sm bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-700 rounded-lg hover:bg-blue-100 dark:hover:bg-blue-900/30 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-                    >
-                      <div className="font-medium text-blue-700 dark:text-blue-300">Load Unique Order IDs Only</div>
-                      <div className="text-xs text-blue-600 dark:text-blue-400 mt-1">Remove duplicate order_id entries</div>
-                    </button>
-                  </div>
-                </div>
-              </div>
-            )}
+
             
             {/* Show suggestions when data is loaded */}
             {dataLoaded && (
